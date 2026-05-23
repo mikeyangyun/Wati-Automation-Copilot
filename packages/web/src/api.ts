@@ -1,8 +1,11 @@
 import {
   FlowSchema,
+  IssueSchema,
   SessionSchema,
   SimulationEventSchema,
   type Flow,
+  type Issue,
+  type IssueCode,
   type Session,
   type SimulationEvent,
 } from 'shared';
@@ -19,7 +22,18 @@ export const SessionEnvelopeSchema = z.object({
 });
 export type SessionEnvelope = z.infer<typeof SessionEnvelopeSchema>;
 
-export type { Session, SimulationEvent };
+/**
+ * Server envelope returned by `POST /api/flows/:id/review`. Lives in the web
+ * package because it is an HTTP boundary type that combines structural and
+ * semantic issues with a pre-rendered summary string.
+ */
+export const ReviewResultSchema = z.object({
+  issues: z.array(IssueSchema),
+  summary: z.string().min(1),
+});
+export type ReviewResult = z.infer<typeof ReviewResultSchema>;
+
+export type { Issue, IssueCode, Session, SimulationEvent };
 
 /**
  * Mirrors the server's error envelope shape: `{ error: { code, message } }`.
@@ -121,6 +135,14 @@ export class ApiClient {
     return parseExplanationEnvelope(json);
   }
 
+  async reviewFlow(flowId: string, signal?: AbortSignal): Promise<ReviewResult> {
+    const json = await this.requestJson(`/api/flows/${encodeURIComponent(flowId)}/review`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    return parseReviewEnvelope(json);
+  }
+
   private async requestJson(path: string, init: RequestInit): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
 
@@ -176,6 +198,9 @@ export const resetSession = (sessionId: string, signal?: AbortSignal): Promise<S
 
 export const explainFlow = (flowId: string, signal?: AbortSignal): Promise<string> =>
   apiClient.explainFlow(flowId, signal);
+
+export const reviewFlow = (flowId: string, signal?: AbortSignal): Promise<ReviewResult> =>
+  apiClient.reviewFlow(flowId, signal);
 
 function safeJsonParse(text: string): unknown {
   try {
@@ -235,4 +260,16 @@ function parseExplanationEnvelope(json: unknown): string {
     );
   }
   return explanation;
+}
+
+function parseReviewEnvelope(json: unknown): ReviewResult {
+  const parsed = ReviewResultSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new ApiError(
+      'INVALID_RESPONSE',
+      `Server response did not match ReviewResult schema: ${parsed.error.message.slice(0, 200)}`,
+      0,
+    );
+  }
+  return parsed.data;
 }

@@ -1,7 +1,7 @@
-import type { Flow, Session } from 'shared';
+import type { Flow, Issue, Session } from 'shared';
 import { describe, expect, it } from 'vitest';
 
-import { ApiClient, ApiError, type SessionEnvelope } from './api.js';
+import { ApiClient, ApiError, type ReviewResult, type SessionEnvelope } from './api.js';
 
 const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
   id: 'flow_1',
@@ -428,6 +428,106 @@ describe('ApiClient.explainFlow', () => {
       fetch: jsonFetch(200, { explanation: '' }),
     });
     await expect(client.explainFlow('flow_1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+});
+
+const buildIssue = (overrides: Partial<Issue> = {}): Issue => ({
+  severity: 'warning',
+  code: 'MISSING_FALLBACK',
+  message: 'Ask node has no fallback edge.',
+  nodeIds: ['n_ask'],
+  ...overrides,
+});
+
+const buildReviewResult = (overrides: Partial<ReviewResult> = {}): ReviewResult => ({
+  issues: [buildIssue()],
+  summary: '1 issue found (1 warning).',
+  ...overrides,
+});
+
+describe('ApiClient.reviewFlow', () => {
+  it('POSTs (empty body) to /api/flows/:id/review and returns the parsed result', async () => {
+    const result = buildReviewResult();
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new ApiClient({
+      fetch: async (input, init) => {
+        calls.push({ url: input as string, init });
+        return new Response(JSON.stringify(result), { status: 200 });
+      },
+    });
+
+    const parsed = await client.reviewFlow('flow_1');
+
+    expect(parsed).toEqual(result);
+    expect(calls[0]!.url).toBe('/api/flows/flow_1/review');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.init?.body).toBeUndefined();
+  });
+
+  it('returns an empty issue list and the canonical "No issues found." summary on a clean flow', async () => {
+    const result = buildReviewResult({ issues: [], summary: 'No issues found.' });
+    const client = new ApiClient({
+      fetch: jsonFetch(200, result),
+    });
+    const parsed = await client.reviewFlow('flow_1');
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.summary).toBe('No issues found.');
+  });
+
+  it('encodes special characters in flowId', async () => {
+    const calls: string[] = [];
+    const client = new ApiClient({
+      fetch: async (input) => {
+        calls.push(input as string);
+        return new Response(JSON.stringify(buildReviewResult({ issues: [] })), { status: 200 });
+      },
+    });
+    await client.reviewFlow('flow/with space');
+    expect(calls[0]).toBe('/api/flows/flow%2Fwith%20space/review');
+  });
+
+  it('forwards an AbortSignal to fetch', async () => {
+    let observed: AbortSignal | undefined;
+    const client = new ApiClient({
+      fetch: async (_input, init) => {
+        observed = init?.signal ?? undefined;
+        return new Response(JSON.stringify(buildReviewResult({ issues: [] })), { status: 200 });
+      },
+    });
+    const controller = new AbortController();
+    await client.reviewFlow('flow_1', controller.signal);
+    expect(observed).toBe(controller.signal);
+  });
+
+  it('throws ApiError(FLOW_NOT_FOUND, 404) when the flow is missing', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(404, { error: { code: 'FLOW_NOT_FOUND', message: 'gone' } }),
+    });
+    await expect(client.reviewFlow('flow_x')).rejects.toMatchObject({
+      code: 'FLOW_NOT_FOUND',
+      status: 404,
+    });
+  });
+
+  it('throws ApiError(INVALID_RESPONSE) when the body shape does not match ReviewResult', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(200, { issues: 'not-an-array', summary: 'oops' }),
+    });
+    await expect(client.reviewFlow('flow_1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+
+  it('throws ApiError(INVALID_RESPONSE) when an issue has an unknown code', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(200, {
+        issues: [{ severity: 'error', code: 'TOTALLY_FAKE', message: 'x', nodeIds: [] }],
+        summary: '1 issue found (1 error).',
+      }),
+    });
+    await expect(client.reviewFlow('flow_1')).rejects.toMatchObject({
       code: 'INVALID_RESPONSE',
     });
   });
