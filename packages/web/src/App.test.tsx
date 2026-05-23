@@ -22,11 +22,13 @@ vi.mock('./api.js', () => ({
   startSession: vi.fn(),
   stepSession: vi.fn(),
   resetSession: vi.fn(),
+  explainFlow: vi.fn(),
 }));
 
 import { App } from './App.js';
 import {
   ApiError,
+  explainFlow,
   generateFlow,
   resetSession,
   startSession,
@@ -38,6 +40,7 @@ const mockGenerate = generateFlow as unknown as ReturnType<typeof vi.fn>;
 const mockStart = startSession as unknown as ReturnType<typeof vi.fn>;
 const mockStep = stepSession as unknown as ReturnType<typeof vi.fn>;
 const mockReset = resetSession as unknown as ReturnType<typeof vi.fn>;
+const mockExplain = explainFlow as unknown as ReturnType<typeof vi.fn>;
 
 const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
   id: 'flow_demo',
@@ -75,6 +78,7 @@ beforeEach(() => {
   mockStart.mockReset();
   mockStep.mockReset();
   mockReset.mockReset();
+  mockExplain.mockReset();
 });
 
 afterEach(() => {
@@ -302,5 +306,114 @@ describe('App — simulation auto-start + step + reset', () => {
     await generate(user);
 
     await screen.findByText(/starting simulation/i);
+  });
+});
+
+describe('App — Explain wiring', () => {
+  async function generate(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+  }
+
+  it('clicking Explain calls explainFlow with the ready flow id and renders the result', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_demo' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockExplain.mockResolvedValueOnce('- The bot greets contacts.\n- Then it ends.');
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+
+    const block = await screen.findByTestId('explanation');
+    expect(block).toHaveTextContent('greets contacts');
+    expect(mockExplain).toHaveBeenCalledWith('flow_demo', expect.any(AbortSignal));
+  });
+
+  it('renders the explanation error envelope when the API rejects', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockExplain.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'down', 502));
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+
+    const alert = await screen.findByTestId('explanation-error');
+    expect(alert).toHaveTextContent('LLM_UNAVAILABLE');
+    expect(alert).toHaveTextContent('down');
+  });
+
+  it('clicking Refresh aborts the prior in-flight explain and uses the latest result', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    // First call resolves immediately so we land in ready state quickly.
+    mockExplain.mockResolvedValueOnce('- initial result');
+    // Second call hangs so we can observe the prior controller is aborted.
+    let secondSignal: AbortSignal | undefined;
+    mockExplain.mockImplementationOnce(async (_id: string, signal?: AbortSignal) => {
+      secondSignal = signal;
+      await new Promise(() => {
+        /* never resolves */
+      });
+      return 'unreachable';
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+    await screen.findByTestId('explanation');
+
+    // Click refresh — previous explanation should remain visible (dimmed),
+    // and the third request should be in flight.
+    await user.click(screen.getByRole('button', { name: /refresh explanation/i }));
+
+    await screen.findByText(/initial result/i); // still visible
+    expect(screen.getByTestId('explanation')).toHaveClass('flow-explanation-refreshing');
+    expect(secondSignal?.aborted).toBe(false); // the second (hanging) call holds the signal
+  });
+
+  it('clicking × closes the explanation block and returns to idle', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockExplain.mockResolvedValueOnce('- something to close');
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+    await screen.findByTestId('explanation');
+
+    await user.click(screen.getByRole('button', { name: /close explanation/i }));
+    expect(screen.queryByTestId('explanation')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
+  });
+
+  it('resets explainStatus to idle when a new generate is triggered', async () => {
+    // First flow → Explain succeeds.
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_one' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockExplain.mockResolvedValueOnce('- first explanation');
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+    await screen.findByTestId('explanation');
+
+    // Second generate → explanation should disappear.
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_two' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    await user.clear(screen.getByLabelText(/prompt input/i));
+    await user.type(screen.getByLabelText(/prompt input/i), 'second');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    await waitFor(() => expect(screen.queryByTestId('explanation')).not.toBeInTheDocument());
   });
 });

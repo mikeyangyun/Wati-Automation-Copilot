@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ApiError,
+  explainFlow,
   generateFlow,
   resetSession,
   startSession,
@@ -11,26 +12,35 @@ import {
 import { ChatPanel } from './panels/ChatPanel.js';
 import { FlowPanel } from './panels/FlowPanel.js';
 import { PromptPanel } from './panels/PromptPanel.js';
-import type { AppErrorSummary, AppStatus, SimulationStatus } from './state.js';
+import type { AppErrorSummary, AppStatus, ExplainStatus, SimulationStatus } from './state.js';
 
 export function App() {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<AppStatus>({ kind: 'idle' });
   const [simStatus, setSimStatus] = useState<SimulationStatus>({ kind: 'inactive' });
+  const [explainStatus, setExplainStatus] = useState<ExplainStatus>({ kind: 'idle' });
   const generateAbortRef = useRef<AbortController | null>(null);
   const simAbortRef = useRef<AbortController | null>(null);
+  const explainAbortRef = useRef<AbortController | null>(null);
   // Mirror of simStatus, so step/reset handlers can read the current sessionId
   // without depending on it (which would re-create the callbacks on every keystroke).
   const simStatusRef = useRef<SimulationStatus>(simStatus);
   useEffect(() => {
     simStatusRef.current = simStatus;
   }, [simStatus]);
+  // Same pattern for explainStatus: handleExplain reads the previous explanation
+  // so it can stay visible during a refresh.
+  const explainStatusRef = useRef<ExplainStatus>(explainStatus);
+  useEffect(() => {
+    explainStatusRef.current = explainStatus;
+  }, [explainStatus]);
 
-  // Abort any in-flight network on unmount, for both lifecycles.
+  // Abort any in-flight network on unmount, for all lifecycles.
   useEffect(
     () => () => {
       generateAbortRef.current?.abort();
       simAbortRef.current?.abort();
+      explainAbortRef.current?.abort();
     },
     [],
   );
@@ -59,10 +69,12 @@ export function App() {
     if (!prompt.trim()) return;
     generateAbortRef.current?.abort();
     simAbortRef.current?.abort();
+    explainAbortRef.current?.abort();
     const controller = new AbortController();
     generateAbortRef.current = controller;
     setStatus({ kind: 'generating' });
     setSimStatus({ kind: 'inactive' });
+    setExplainStatus({ kind: 'idle' });
     try {
       const flow = await generateFlow(prompt, controller.signal);
       if (controller.signal.aborted) return;
@@ -111,6 +123,37 @@ export function App() {
     }
   }, []);
 
+  const handleExplain = useCallback(async () => {
+    if (status.kind !== 'ready') return;
+    const fid = status.flow.id;
+
+    // Keep the previous explanation visible if there is one (refresh UX); otherwise
+    // show the loading placeholder. Either way, abort any prior in-flight request.
+    explainAbortRef.current?.abort();
+    const prev = explainStatusRef.current;
+    if (prev.kind === 'ready') {
+      setExplainStatus({ kind: 'ready', explanation: prev.explanation, refreshing: true });
+    } else {
+      setExplainStatus({ kind: 'loading' });
+    }
+
+    const controller = new AbortController();
+    explainAbortRef.current = controller;
+    try {
+      const explanation = await explainFlow(fid, controller.signal);
+      if (controller.signal.aborted) return;
+      setExplainStatus({ kind: 'ready', explanation });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setExplainStatus({ kind: 'error', error: summariseError(err) });
+    }
+  }, [status]);
+
+  const handleCloseExplain = useCallback(() => {
+    explainAbortRef.current?.abort();
+    setExplainStatus({ kind: 'idle' });
+  }, []);
+
   return (
     <div className="app">
       <header className="header">
@@ -123,7 +166,12 @@ export function App() {
           onSubmit={handleSubmit}
           isGenerating={status.kind === 'generating'}
         />
-        <FlowPanel status={status} />
+        <FlowPanel
+          status={status}
+          explainStatus={explainStatus}
+          onExplain={handleExplain}
+          onCloseExplain={handleCloseExplain}
+        />
         <ChatPanel status={simStatus} onStep={handleStep} onReset={handleReset} />
       </main>
     </div>
