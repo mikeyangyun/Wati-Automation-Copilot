@@ -3,11 +3,18 @@ import { pino } from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { FlowGenerator } from '../agents/flowAgent.js';
+import type { FlowReviewer } from '../agents/reviewAgent.js';
 import { buildApp } from '../app.js';
 import { AppError } from '../errors.js';
 import { InMemoryStore } from '../store/inMemoryStore.js';
 
 const silentLogger = pino({ level: 'silent' });
+
+const noopReviewer: FlowReviewer = {
+  explain: async () => {
+    throw new Error('flows.test.ts does not exercise explain; this stub is unreachable');
+  },
+};
 
 const buildSampleFlow = (overrides: Partial<Flow> = {}): Flow => ({
   id: 'flow_sample',
@@ -44,7 +51,12 @@ async function withApp(
   run: (app: Awaited<ReturnType<typeof buildApp>>, store: InMemoryStore) => Promise<void>,
 ): Promise<void> {
   const store = new InMemoryStore();
-  const app = await buildApp({ loggerInstance: silentLogger, agent, store });
+  const app = await buildApp({
+    loggerInstance: silentLogger,
+    agent,
+    reviewer: noopReviewer,
+    store,
+  });
   try {
     await run(app, store);
   } finally {
@@ -214,6 +226,136 @@ describe('GET /api/flows/:id', () => {
       const getRes = await app.inject({ method: 'GET', url: `/api/flows/${flow.id}` });
       expect(getRes.statusCode).toBe(200);
       expect(getRes.json()).toEqual({ flow });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/flows/:id/explain — Phase 3
+// ---------------------------------------------------------------------------
+
+class StubReviewer implements FlowReviewer {
+  public callCount = 0;
+  public lastFlowId: string | undefined;
+
+  constructor(
+    private readonly behavior:
+      | { kind: 'ok'; explanation: string }
+      | { kind: 'throw'; error: unknown },
+  ) {}
+
+  async explain(flow: Flow): Promise<string> {
+    this.callCount += 1;
+    this.lastFlowId = flow.id;
+    if (this.behavior.kind === 'throw') {
+      throw this.behavior.error;
+    }
+    return this.behavior.explanation;
+  }
+}
+
+const noopAgentForExplain: FlowGenerator = {
+  generate: async () => {
+    throw new Error('explain tests do not invoke the generator');
+  },
+};
+
+async function withReviewerApp(
+  reviewer: FlowReviewer,
+  run: (app: Awaited<ReturnType<typeof buildApp>>, store: InMemoryStore) => Promise<void>,
+): Promise<void> {
+  const store = new InMemoryStore();
+  const app = await buildApp({
+    loggerInstance: silentLogger,
+    agent: noopAgentForExplain,
+    reviewer,
+    store,
+  });
+  try {
+    await run(app, store);
+  } finally {
+    await app.close();
+  }
+}
+
+describe('POST /api/flows/:id/explain — happy path', () => {
+  it('returns 200 with { explanation } and calls reviewer with the stored flow', async () => {
+    const flow = buildSampleFlow({ id: 'flow_explain_1' });
+    const reviewer = new StubReviewer({
+      kind: 'ok',
+      explanation: '- When a contact messages, the bot says hello.',
+    });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/flows/flow_explain_1/explain',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({
+        explanation: '- When a contact messages, the bot says hello.',
+      });
+      expect(reviewer.callCount).toBe(1);
+      expect(reviewer.lastFlowId).toBe('flow_explain_1');
+    });
+  });
+});
+
+describe('POST /api/flows/:id/explain — error paths', () => {
+  it('returns 404 FLOW_NOT_FOUND when the flow id is unknown', async () => {
+    const reviewer = new StubReviewer({ kind: 'ok', explanation: '- ignored' });
+
+    await withReviewerApp(reviewer, async (app) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/flows/flow_does_not_exist/explain',
+      });
+      expect(res.statusCode).toBe(404);
+      const body = res.json() as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('FLOW_NOT_FOUND');
+      expect(body.error.message).toContain('flow_does_not_exist');
+      expect(reviewer.callCount).toBe(0);
+    });
+  });
+
+  it('maps an AppError(502, LLM_UNAVAILABLE) from reviewer to the same envelope', async () => {
+    const flow = buildSampleFlow({ id: 'flow_explain_502' });
+    const reviewer = new StubReviewer({
+      kind: 'throw',
+      error: new AppError('LLM_UNAVAILABLE', 'provider down', 502),
+    });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/flows/flow_explain_502/explain',
+      });
+      expect(res.statusCode).toBe(502);
+      const body = res.json() as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('LLM_UNAVAILABLE');
+      expect(body.error.message).toBe('provider down');
+    });
+  });
+
+  it('maps an unexpected (non-AppError) reviewer throw to 500 INTERNAL', async () => {
+    const flow = buildSampleFlow({ id: 'flow_explain_500' });
+    const reviewer = new StubReviewer({
+      kind: 'throw',
+      error: new Error('reviewer exploded'),
+    });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/flows/flow_explain_500/explain',
+      });
+      expect(res.statusCode).toBe(500);
+      const body = res.json() as { error: { code: string } };
+      expect(body.error.code).toBe('INTERNAL');
     });
   });
 });

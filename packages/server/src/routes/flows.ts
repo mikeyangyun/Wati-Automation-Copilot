@@ -2,11 +2,13 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
 import type { FlowGenerator } from '../agents/flowAgent.js';
+import type { FlowReviewer } from '../agents/reviewAgent.js';
 import { AppError } from '../errors.js';
 import type { InMemoryStore } from '../store/inMemoryStore.js';
 
 export interface FlowsRoutesDeps {
   agent: FlowGenerator;
+  reviewer: FlowReviewer;
   store: InMemoryStore;
 }
 
@@ -39,6 +41,16 @@ export function buildFlowsRoutes(deps: FlowsRoutesDeps): FastifyPluginAsync {
         throw new AppError('FLOW_NOT_FOUND', `Flow ${id} not found`, 404);
       }
       return { flow };
+    });
+
+    app.post('/flows/:id/explain', async (req) => {
+      const { id } = FlowIdParamsSchema.parse(req.params);
+      const flow = deps.store.getFlow(id);
+      if (!flow) {
+        throw new AppError('FLOW_NOT_FOUND', `Flow ${id} not found`, 404);
+      }
+      const explanation = await deps.reviewer.explain(flow);
+      return { explanation };
     });
   };
 }
