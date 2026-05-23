@@ -29,13 +29,15 @@ The Copilot sits **upstream of publish** — design and validate first, then con
 
 ---
 
-## Scope
+## Out of Scope (MVP)
 
-| In scope (MVP) | Out of scope (MVP) |
-|----------------|--------------------|
-| Natural-language input with starter examples | Drag-and-drop visual editor |
-| Generation of a Wati-style flow from a brief | Publish or deploy to live channels |
-| Read-only node graph + structured flow view (same underlying artifact) | Wati API / WhatsApp integration |
-| AI: generate, explain, review | Accounts, login, saved workflows, versioning |
-| Multi-turn mock simulation with fallback and session reset | Persistent storage and long-term flow library |
-| Hybrid review (structural checks + AI semantic findings) | AI-authored runtime chat replies |
+The product focuses on AI-assisted design and pre-launch validation. The following are explicitly excluded from the MVP:
+
+- Drag-and-drop visual editor
+- Publish or deploy to live channels
+- Wati API / WhatsApp integration
+- Accounts, login, and saved workflows
+- Persistent storage and long-term flow library
+- AI-authored runtime chat replies
+
+See [PRODUCT.md §2](./PRODUCT.md) for the full in-scope and out-of-scope breakdown.
