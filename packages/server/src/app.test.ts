@@ -3,6 +3,7 @@ import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import type { FlowGenerator } from './agents/flowAgent.js';
+import type { FlowReviewer } from './agents/reviewAgent.js';
 import { buildApp } from './app.js';
 import { InMemoryStore } from './store/inMemoryStore.js';
 
@@ -14,8 +15,15 @@ const stubAgent: FlowGenerator = {
   },
 };
 
+const stubReviewer: FlowReviewer = {
+  explain: async () => {
+    throw new Error('stub reviewer should not be invoked by these tests');
+  },
+};
+
 const minimalDeps = () => ({
   agent: stubAgent,
+  reviewer: stubReviewer,
   store: new InMemoryStore(),
 });
 
