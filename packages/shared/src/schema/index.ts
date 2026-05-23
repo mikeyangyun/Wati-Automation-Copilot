@@ -4,4 +4,5 @@ export * from './issue.js';
 export * from './message.js';
 export * from './node.js';
 export * from './session.js';
+export * from './simulationEvent.js';
 export * from './trigger.js';
