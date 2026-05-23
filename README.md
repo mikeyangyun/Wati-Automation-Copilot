@@ -39,12 +39,21 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
 ## Design Principles
 
-Four rules shape both the architecture and the feature scope:
+Eight rules guide how the product is shaped and how the code is written.
+
+### Product & architecture
 
 1. **Design-time AI only.** Generation, explanation, and semantic review use a language model. Runtime simulation is deterministic — the model never authors live chat replies.
 2. **Hybrid review.** Structural defects (unreachable nodes, missing fallback, broken connections) are caught by code. Semantic gaps (missing branches, ambiguous wording) are caught by the model. Findings are merged and surfaced with severity.
 3. **Single source of truth.** One generated flow drives the node graph, the structured view, and the simulation engine. There is no separate UI state to keep in sync.
 4. **Shared schema.** The Flow type is defined once and reused across backend, frontend, and LLM output validation. The same Zod schema validates API payloads and model output.
+
+### Engineering
+
+5. **SOLID code.** Modules follow single-responsibility, depend on interfaces over implementations, and stay open for extension. The `LLMProvider` boundary is the canonical example — agents depend on the interface, not on vendor SDKs.
+6. **Unified configuration.** All tunables — LLM provider, model, base URL, ports, retry limits, feature flags — live in one config layer driven by environment variables. No magic constants scattered across modules; one place to read, one place to change.
+7. **Minimise external service calls.** Every LLM call costs latency and money. Generated flows are stored once and reused: Explain and Review read the stored flow rather than regenerating it. Retry only on validation failure, with a hard cap.
+8. **Defence-in-depth security.** Validate inputs at the API boundary (Zod), constrain LLM outputs with schema + retry, keep secrets server-only, never log full prompts or provider responses, and fail closed on auth or quota errors. See [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) for the full checklist.
 
 ---
 
