@@ -64,7 +64,7 @@ describe('FlowPanel — base rendering', () => {
     expect(screen.getByText(/generating flow/i)).toBeInTheDocument();
   });
 
-  it('renders the graph by default when status is ready and surfaces the Explain button (AC-V1)', async () => {
+  it('renders the graph by default when status is ready and surfaces the Explain button', async () => {
     const flow = buildFlow();
     renderPanel({ kind: 'ready', flow });
     expect(await screen.findByTestId('flow-graph')).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('FlowPanel — Explain interaction', () => {
     expect(screen.getByRole('button', { name: /refresh explanation/i })).toBeEnabled();
   });
 
-  it('renders the explanation block before the flow body in DOM order (AC-E7)', async () => {
+  it('renders the explanation block before the flow body in DOM order', async () => {
     const explanation = '- A short explanation';
     renderPanel(readyStatus, { kind: 'ready', explanation });
 
@@ -171,7 +171,7 @@ describe('FlowPanel — Explain interaction', () => {
   });
 });
 
-describe('FlowPanel — Review interaction (Phase 4)', () => {
+describe('FlowPanel — Review interaction', () => {
   const flow = buildFlow();
   const readyStatus: AppStatus = { kind: 'ready', flow };
 
@@ -267,17 +267,17 @@ describe('FlowPanel — Review interaction (Phase 4)', () => {
   });
 });
 
-describe('FlowPanel — Graph / JSON view toggle (Phase 5)', () => {
+describe('FlowPanel — Graph / JSON view toggle', () => {
   const flow = buildFlow();
   const readyStatus: AppStatus = { kind: 'ready', flow };
 
-  it('defaults to the graph view when status becomes ready (AC-V1)', async () => {
+  it('defaults to the graph view when status becomes ready', async () => {
     renderPanel(readyStatus);
     expect(await screen.findByTestId('flow-graph')).toBeInTheDocument();
     expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
   });
 
-  it('exposes a "View JSON" toggle in the header that switches to the JSON view (AC-V2)', async () => {
+  it('exposes a "View JSON" toggle in the header that switches to the JSON view', async () => {
     renderPanel(readyStatus);
     await screen.findByTestId('flow-graph');
     const toggle = screen.getByTestId('flow-view-toggle');
@@ -307,7 +307,7 @@ describe('FlowPanel — Graph / JSON view toggle (Phase 5)', () => {
   });
 });
 
-describe('FlowPanel — Explain / Review mutex (BA decision #5)', () => {
+describe('FlowPanel — Explain / Review mutex', () => {
   const flow = buildFlow();
   const readyStatus: AppStatus = { kind: 'ready', flow };
 

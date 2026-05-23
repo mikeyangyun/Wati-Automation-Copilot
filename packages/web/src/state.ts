@@ -37,8 +37,8 @@ export type SimulationStatus =
   | { kind: 'error'; error: AppErrorSummary };
 
 /**
- * Explain (Phase 3) lifecycle. Sibling to SimulationStatus — independent of
- * both AppStatus and SimulationStatus, since explanation freshness is
+ * Explain lifecycle. Sibling to SimulationStatus — independent of both
+ * AppStatus and SimulationStatus, since explanation freshness is
  * user-driven (each click is a new request, no auto-fetch).
  *
  * `ready.refreshing` flags a click-while-ready so the UI can keep the
@@ -52,10 +52,10 @@ export type ExplainStatus =
   | { kind: 'error'; error: AppErrorSummary };
 
 /**
- * Review (Phase 4) lifecycle. Mutually exclusive with `ExplainStatus` in
- * the UI (BA decision #5): the App layer keeps both pieces of state but the
- * FlowPanel only renders one block at a time. Per BA decision #6 the
- * refresh UX is "blank then loading" — there is no `refreshing` flag here.
+ * Review lifecycle. Mutually exclusive with `ExplainStatus` in the UI: the
+ * App layer keeps both pieces of state but the FlowPanel only renders one
+ * block at a time. The refresh UX is "blank then loading" — there is no
+ * `refreshing` flag here, unlike `ExplainStatus`.
  */
 export type ReviewStatus =
   | { kind: 'idle' }

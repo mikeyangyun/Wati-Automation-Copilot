@@ -142,7 +142,7 @@ describe('ChatPanel', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
-  describe('transient error banner (P0-2)', () => {
+  describe('transient error banner', () => {
     it('keeps the transcript and renders an inline banner when lastError is set', () => {
       const status: SimulationStatus = {
         kind: 'active',

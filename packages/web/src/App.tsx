@@ -162,8 +162,8 @@ export function App() {
     // Keep the previous explanation visible if there is one (refresh UX); otherwise
     // show the loading placeholder. Either way, abort any prior in-flight request.
     explainAbortRef.current?.abort();
-    // BA decision #5 — Explain and Review are mutually exclusive in the UI.
-    // Opening Explain closes any active Review.
+    // Explain and Review are mutually exclusive in the UI; opening Explain
+    // closes any active Review.
     reviewAbortRef.current?.abort();
     setReviewStatus({ kind: 'idle' });
 
@@ -195,12 +195,12 @@ export function App() {
     if (status.kind !== 'ready') return;
     const fid = status.flow.id;
 
-    // BA decision #5 — mutex with Explain.
+    // Mutex with Explain.
     explainAbortRef.current?.abort();
     setExplainStatus({ kind: 'idle' });
 
-    // BA decision #6 — "blank then loading": always clear the previous result
-    // when the user re-triggers a review. No refreshing-overlay UX here.
+    // "Blank then loading": always clear the previous result when the user
+    // re-triggers a review. No refreshing-overlay UX here.
     reviewAbortRef.current?.abort();
     setReviewStatus({ kind: 'loading' });
     // A new review run invalidates whatever was previously selected.

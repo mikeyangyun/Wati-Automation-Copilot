@@ -282,7 +282,7 @@ describe('App — simulation auto-start + step + reset', () => {
     expect(mockReset).toHaveBeenCalledWith('sess_1', expect.any(AbortSignal));
   });
 
-  it('preserves the transcript and renders an inline banner when a step fails (P0-2)', async () => {
+  it('preserves the transcript and renders an inline banner when a step fails', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());
     mockStep.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'timeout', 502));
@@ -302,7 +302,7 @@ describe('App — simulation auto-start + step + reset', () => {
     expect(screen.getByLabelText(/reply input/i)).not.toBeDisabled();
   });
 
-  it('clears the inline banner once the next step succeeds (P0-2)', async () => {
+  it('clears the inline banner once the next step succeeds', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());
     mockStep.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'timeout', 502));
@@ -471,7 +471,7 @@ const buildReviewResult = (overrides: Partial<ReviewResult> = {}): ReviewResult 
   ...overrides,
 });
 
-describe('App — Review wiring (Phase 4)', () => {
+describe('App — Review wiring', () => {
   async function generate(user: ReturnType<typeof userEvent.setup>) {
     await user.type(screen.getByLabelText(/prompt input/i), 'hi');
     await user.click(screen.getByRole('button', { name: /generate/i }));
@@ -589,7 +589,7 @@ describe('App — Review wiring (Phase 4)', () => {
     expect(screen.getByRole('button', { name: 'Review' })).toBeEnabled();
   });
 
-  it('clicking Review again clears the previous result (blank-then-loading UX, BA decision #6)', async () => {
+  it('clicking Review again clears the previous result (blank-then-loading UX)', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());
     mockReview.mockResolvedValueOnce(buildReviewResult());
@@ -634,7 +634,7 @@ describe('App — Review wiring (Phase 4)', () => {
   });
 });
 
-describe('App — Issue \u2194 Graph selection (Phase 5)', () => {
+describe('App — Issue \u2194 Graph selection', () => {
   const flowWithAsk = buildFlow({
     id: 'flow_sel',
     entryNodeId: 'n_start',
@@ -694,7 +694,7 @@ describe('App — Issue \u2194 Graph selection (Phase 5)', () => {
     return card as HTMLElement;
   };
 
-  it('clicking an issue card highlights the affected node in the graph (AC-V6)', async () => {
+  it('clicking an issue card highlights the affected node in the graph', async () => {
     const user = await setupReview();
 
     expect(getGraphNode('ask_question')).not.toHaveAttribute('data-selected');

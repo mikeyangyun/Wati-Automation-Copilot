@@ -234,7 +234,7 @@ describe('GET /api/flows/:id', () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/flows/:id/explain — Phase 3
+// POST /api/flows/:id/explain
 // ---------------------------------------------------------------------------
 
 class StubReviewer implements FlowReviewer {
@@ -368,7 +368,7 @@ describe('POST /api/flows/:id/explain — error paths', () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/flows/:id/review — Phase 4
+// POST /api/flows/:id/review
 // ---------------------------------------------------------------------------
 
 class StubReviewerForReview implements FlowReviewer {
@@ -431,7 +431,7 @@ function missingFallbackFixture(): Flow {
   return flow;
 }
 
-describe('POST /api/flows/:id/review — happy path (AC-R1, AC-R3, AC-R10)', () => {
+describe('POST /api/flows/:id/review — happy path', () => {
   it('returns 200 with empty issues and "No issues found." for a clean flow', async () => {
     const flow = completeFlowFixture();
     const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
@@ -449,7 +449,7 @@ describe('POST /api/flows/:id/review — happy path (AC-R1, AC-R3, AC-R10)', () 
     });
   });
 
-  it('includes structural findings for a defective flow (AC-R4)', async () => {
+  it('includes structural findings for a defective flow', async () => {
     const flow = missingFallbackFixture();
     const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
 
@@ -472,7 +472,7 @@ describe('POST /api/flows/:id/review — happy path (AC-R1, AC-R3, AC-R10)', () 
   });
 });
 
-describe('POST /api/flows/:id/review — merge (AC-R8)', () => {
+describe('POST /api/flows/:id/review — merge', () => {
   it('drops a semantic issue that lands on a structurally-flagged node', async () => {
     const flow = missingFallbackFixture();
     const semantic: Issue = {
@@ -518,7 +518,7 @@ describe('POST /api/flows/:id/review — merge (AC-R8)', () => {
   });
 });
 
-describe('POST /api/flows/:id/review — LLM degradation (AC-R9)', () => {
+describe('POST /api/flows/:id/review — LLM degradation', () => {
   it('returns 200 with SEMANTIC_REVIEW_UNAVAILABLE info issue when reviewer throws', async () => {
     const flow = completeFlowFixture({ id: 'flow_review_llm_down' });
     const reviewer = new StubReviewerForReview({
@@ -567,7 +567,7 @@ describe('POST /api/flows/:id/review — LLM degradation (AC-R9)', () => {
   });
 });
 
-describe('POST /api/flows/:id/review — error paths (AC-R2)', () => {
+describe('POST /api/flows/:id/review — error paths', () => {
   it('returns 404 FLOW_NOT_FOUND when the flow id is unknown and does not call reviewer', async () => {
     const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
 

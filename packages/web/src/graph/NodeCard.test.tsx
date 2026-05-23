@@ -83,7 +83,7 @@ describe('truncateLabel', () => {
   });
 });
 
-describe('NodeCard — per-type rendering (AC-V3, AC-V5)', () => {
+describe('NodeCard — per-type rendering', () => {
   it.each(ALL_TYPES)('renders the right emoji + chip + accent border for %s', (type) => {
     renderCard({ type, label: 'Test' });
     const card = document.querySelector(`[data-node-type="${type}"]`)!;
@@ -101,7 +101,7 @@ describe('NodeCard — per-type rendering (AC-V3, AC-V5)', () => {
     expect(label).not.toHaveAttribute('title');
   });
 
-  it('truncates long labels and exposes the full label via `title` (AC-V7)', () => {
+  it('truncates long labels and exposes the full label via `title`', () => {
     const long = 'This label is intentionally far too long to fit inside a node card';
     renderCard({ type: 'send_message', label: long });
     // The visible text is truncated with an ellipsis.

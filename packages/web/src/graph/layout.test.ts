@@ -123,7 +123,7 @@ describe('computeLayout — edges', () => {
   });
 });
 
-describe('computeLayout — determinism (AC-V9)', () => {
+describe('computeLayout — determinism', () => {
   it('produces identical output for identical input across two invocations', () => {
     const a = computeLayout(flowFixture());
     const b = computeLayout(flowFixture());

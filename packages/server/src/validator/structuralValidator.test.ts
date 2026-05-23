@@ -58,7 +58,7 @@ function completeFlow(): Flow {
   };
 }
 
-describe('validateFlow — happy path (AC-R3)', () => {
+describe('validateFlow — happy path', () => {
   it('returns no issues for a complete flow', () => {
     expect(validateFlow(completeFlow())).toEqual([]);
   });
@@ -69,7 +69,7 @@ describe('validateFlow — happy path (AC-R3)', () => {
   });
 });
 
-describe('detectMissingEntry (AC-R6)', () => {
+describe('detectMissingEntry', () => {
   it('fires when entryNodeId points to a non-existent node', () => {
     const flow = completeFlow();
     flow.entryNodeId = 'n_does_not_exist';
@@ -87,7 +87,7 @@ describe('detectMissingEntry (AC-R6)', () => {
   });
 });
 
-describe('detectDanglingEdges (AC-R5)', () => {
+describe('detectDanglingEdges', () => {
   it('flags an edge whose target is missing', () => {
     const flow = completeFlow();
     flow.edges.push({ id: 'e_bad', from: 'n_ask', to: 'n_phantom' });
@@ -122,7 +122,7 @@ describe('detectDanglingEdges (AC-R5)', () => {
   });
 });
 
-describe('detectUnreachableNodes (AC-R7)', () => {
+describe('detectUnreachableNodes', () => {
   it('flags a node not reachable from entry', () => {
     const flow = completeFlow();
     flow.nodes.push({
@@ -164,7 +164,7 @@ describe('detectUnreachableNodes (AC-R7)', () => {
   });
 });
 
-describe('detectMissingFallback (AC-R4)', () => {
+describe('detectMissingFallback', () => {
   it('flags an ask_question with labeled edges but no default edge', () => {
     const flow = completeFlow();
     flow.edges = flow.edges.filter((e) => e.id !== 'e_default');

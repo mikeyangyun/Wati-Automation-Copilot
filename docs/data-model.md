@@ -49,7 +49,7 @@ The structured representation of a chatbot automation generated from a natural-l
 | `POST` | `/api/flows/:id/explain` | —            | `{ explanation }`     | 200 · 404 · 502       |
 | `POST` | `/api/flows/:id/review`  | —            | `{ issues, summary }` | 200 · 404             |
 
-`/review` does **not** return 502 on LLM failure. The structural validator runs in parallel with the semantic agent; if the LLM throws, the response still returns 200 with an `info`-level `SEMANTIC_REVIEW_UNAVAILABLE` issue appended. This is the "graceful degradation" decision recorded as Phase 4 BA decision #2 — review must remain useful even when the model is down. See [`packages/server/src/routes/flows.ts`](../packages/server/src/routes/flows.ts) for the merging logic.
+`/review` does **not** return 502 on LLM failure. The structural validator runs in parallel with the semantic agent; if the LLM throws, the response still returns 200 with an `info`-level `SEMANTIC_REVIEW_UNAVAILABLE` issue appended — review must remain useful even when the model is down (graceful degradation). See [`packages/server/src/routes/flows.ts`](../packages/server/src/routes/flows.ts) for the merging logic.
 
 ### Example — `POST /api/flows/generate`
 
@@ -213,7 +213,7 @@ The `ReviewResult` shape is `{ issues: Issue[], summary: string }` where `summar
 
 ### Merge / dedup rules
 
-When the structural and semantic streams overlap on the same `nodeId`, **structural wins** (`structural_wins_on_nodeId`, recorded as Phase 4 BA decision #3). The merged list is then sorted: severity `error` → `warning` → `info`, then structural → semantic within a severity, then by `nodeIds[0]` for stability.
+When the structural and semantic streams overlap on the same `nodeId`, **structural wins** (`structural_wins_on_nodeId`). The merged list is then sorted: severity `error` → `warning` → `info`, then structural → semantic within a severity, then by `nodeIds[0]` for stability.
 
 ---
 

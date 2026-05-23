@@ -146,8 +146,7 @@ interface ValidationFail {
 
 /**
  * Trims fences/whitespace and rejects responses that are too short or that
- * look like a raw JSON dump (LLM ignoring the markdown instruction). See
- * BUILD_PLAN.md §5.8 BA decision #3.
+ * look like a raw JSON dump (LLM ignoring the markdown instruction).
  */
 function validateExplanation(raw: string): ValidationOk<string> | ValidationFail {
   const trimmed = stripFences(raw).trim();

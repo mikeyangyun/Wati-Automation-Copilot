@@ -54,7 +54,7 @@ export function FlowPanel({
 }: FlowPanelProps) {
   const flowReady = status.kind === 'ready';
   // The view toggle is presentation-only, so it lives in the panel rather
-  // than bubbling all the way up to App. Graph is the default (AC-V1).
+  // than bubbling all the way up to App. Graph is the default.
   const [view, setView] = useState<FlowView>('graph');
 
   const isExplainLoading = explainStatus.kind === 'loading';
@@ -71,9 +71,8 @@ export function FlowPanel({
   const hasReview = reviewStatus.kind === 'ready' || reviewStatus.kind === 'error';
   const reviewLabel = reviewBusy ? 'Reviewing…' : hasReview ? 'Refresh review' : 'Review';
 
-  // BA decision #5 — mutex: the active block is whichever lifecycle is
-  // non-idle. App keeps them mutually exclusive, so this is a presentation
-  // choice, not a guard.
+  // Mutex: the active block is whichever lifecycle is non-idle. App keeps
+  // them mutually exclusive, so this is a presentation choice, not a guard.
   const showExplain = explainStatus.kind !== 'idle';
   const showReview = !showExplain && reviewStatus.kind !== 'idle';
 

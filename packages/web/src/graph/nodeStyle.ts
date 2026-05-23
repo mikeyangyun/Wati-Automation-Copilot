@@ -66,7 +66,7 @@ export function getNodeTypeStyle(type: NodeType): NodeTypeStyle {
   return NODE_TYPE_STYLES[type];
 }
 
-/** Hard truncation length for graph node labels — see AC-V7. */
+/** Hard truncation length for graph node labels. */
 export const NODE_LABEL_MAX_CHARS = 28;
 
 export function truncateLabel(label: string, max: number = NODE_LABEL_MAX_CHARS): string {

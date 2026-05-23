@@ -14,8 +14,6 @@
 - **Hybrid review** — structural rules + semantic LLM analysis, merged by severity, with graceful degradation when the LLM is unavailable.
 - **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle, type-coded nodes, condition labels, and issue → node highlight on click.
 
-Remaining: demo recording and final write-up (see [BUILD_PLAN.md](./BUILD_PLAN.md) Phase 6 – 7).
-
 For the product specification, see [PRODUCT.md](./PRODUCT.md).
 
 ---
@@ -150,7 +148,6 @@ Wati-Automation-Copilot/
 │   ├── architecture.md        # Runtime sequence diagrams
 │   └── data-model.md          # Entity fields + REST reference
 ├── .cursor/rules/             # Security and engineering rules
-├── BUILD_PLAN.md              # Phase-by-phase execution log with QA artifacts
 ├── PRODUCT.md                 # Product specification
 ├── README.md
 └── LICENSE

@@ -120,7 +120,7 @@ describe('ReviewAgent.explain — retry semantics', () => {
   });
 });
 
-describe('ReviewAgent.explain — validation gate (BA decision #3)', () => {
+describe('ReviewAgent.explain — validation gate', () => {
   it('rejects an empty string', async () => {
     const provider = new MockLLMProvider(['', validMarkdownBullets]);
     const agent = new ReviewAgent({ provider });
@@ -164,7 +164,7 @@ describe('ReviewAgent.explain — validation gate (BA decision #3)', () => {
   });
 });
 
-describe('ReviewAgent.explain — semantic anchors (AC-E2, should-priority)', () => {
+describe('ReviewAgent.explain — semantic anchors', () => {
   it('explanation against the buyer/seller fixture mentions trigger + branch + handoff terms', async () => {
     const provider = new MockLLMProvider([validMarkdownBullets]);
     const agent = new ReviewAgent({ provider });
@@ -177,7 +177,7 @@ describe('ReviewAgent.explain — semantic anchors (AC-E2, should-priority)', ()
 });
 
 // ---------------------------------------------------------------------------
-// review (Phase 4)
+// review
 // ---------------------------------------------------------------------------
 
 const validReviewPayload = JSON.stringify([

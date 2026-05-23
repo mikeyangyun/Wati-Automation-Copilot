@@ -46,8 +46,8 @@ body {
   background: var(--border);
   min-height: 0;
   /* Below 1200px the three-panel layout starts to squeeze. We let the page
-   * scroll horizontally rather than collapse content; the responsive drawer
-   * pattern is intentionally out of scope (see BUILD_PLAN.md §7.1.1).        */
+   * scroll horizontally rather than collapse content; a responsive drawer
+   * pattern would be a follow-up. */
   min-width: 1100px;
 }
 

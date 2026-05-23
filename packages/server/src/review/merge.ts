@@ -9,7 +9,7 @@ export interface ReviewResult {
 
 /**
  * Combine structural (rule-based) and semantic (LLM) findings into one
- * report. Two important invariants per BA decision #3:
+ * report. Two important invariants:
  *
  * 1. **Structural authoritative on nodeId.** If a node appears in any
  *    structural issue's `nodeIds`, every semantic issue that mentions that

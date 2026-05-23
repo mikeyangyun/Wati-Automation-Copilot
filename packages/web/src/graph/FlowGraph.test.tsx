@@ -26,7 +26,7 @@ function tinyFlow(overrides: Partial<Flow> = {}): Flow {
   };
 }
 
-describe('FlowGraph — empty-flow fallback (AC-V8)', () => {
+describe('FlowGraph — empty-flow fallback', () => {
   it('renders a placeholder and does NOT mount React Flow when nodes are empty', () => {
     render(<FlowGraph flow={tinyFlow({ nodes: [], edges: [] })} />);
     expect(screen.getByTestId('flow-graph-empty')).toBeInTheDocument();

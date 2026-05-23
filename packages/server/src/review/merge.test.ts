@@ -19,7 +19,7 @@ const semanticIssue = (overrides: Partial<Issue> = {}): Issue => ({
   ...overrides,
 });
 
-describe('mergeIssues — dedup (BA decision #3)', () => {
+describe('mergeIssues — structural wins on nodeId', () => {
   it('drops a semantic issue on a node already flagged by structural', () => {
     const result = mergeIssues([structuralIssue()], [semanticIssue()]);
     expect(result.issues).toHaveLength(1);
@@ -83,7 +83,7 @@ describe('mergeIssues — ordering', () => {
   });
 });
 
-describe('summarize (AC-R10)', () => {
+describe('summarize', () => {
   it('returns "No issues found." for an empty list', () => {
     expect(summarize([])).toBe('No issues found.');
   });

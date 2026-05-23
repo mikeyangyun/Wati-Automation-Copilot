@@ -78,8 +78,8 @@ export function stepNode(node: Node, ctx: NodeContext): NodeStepResult {
     }
 
     case 'wait':
-      // Per BA decision: `wait` is silent and instant in mock simulation —
-      // no transcript line, no event, no actual delay.
+      // `wait` is silent and instant in mock simulation — no transcript line,
+      // no event, no actual delay.
       return {
         botMessages: [],
         events: [],

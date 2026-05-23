@@ -2,7 +2,7 @@
 
 > **Document type:** Product prototype & scope definition  
 > **Version:** 1.0  
-> **Status:** Specification locked; implementation complete (demo pending — see [BUILD_PLAN.md](./BUILD_PLAN.md) Phase 6)
+> **Status:** Specification locked; implementation complete
 
 ---
 

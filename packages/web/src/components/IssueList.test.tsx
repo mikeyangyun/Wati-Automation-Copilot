@@ -56,7 +56,7 @@ describe('IssueList — non-interactive rendering', () => {
   });
 });
 
-describe('IssueList — selection (Phase 5)', () => {
+describe('IssueList — selection', () => {
   it('wraps every issue card in a button when onSelect is supplied', () => {
     render(<IssueList result={buildResult()} onSelect={vi.fn()} />);
     const buttons = screen.getAllByRole('button');
