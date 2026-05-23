@@ -123,102 +123,13 @@ flowchart TB
 
 Three packages share one Flow schema. Agents and the executor depend on the schema; the executor never imports the LLM layer.
 
-### Generate flow
+### Runtime flows
 
-```mermaid
-sequenceDiagram
-    participant UI as Web UI
-    participant API as Routes
-    participant Agent as FlowAgent
-    participant Provider as LLMProvider
-    participant Schema as Zod schema
-    participant Store as InMemoryStore
+- **Generate** — `FlowAgent` calls the `LLMProvider`, validates the response against the Zod schema (one retry on failure), and stores the flow.
+- **Explain & review** — both load the stored flow. `explain` is LLM-only. `review` runs the structural validator and the `ReviewAgent` in parallel and merges findings by severity.
+- **Simulate** — the deterministic FSM executor walks the flow; the LLM is never called during a step.
 
-    UI->>API: "POST /flows/generate { prompt }"
-    API->>Agent: generate(prompt)
-    Agent->>Provider: complete(messages)
-    Provider-->>Agent: raw text
-    Agent->>Schema: parse(raw)
-    alt invalid
-        Agent->>Provider: retry once
-        Provider-->>Agent: raw text
-        Agent->>Schema: parse(raw)
-    end
-    Agent->>Store: save(flow)
-    Store-->>Agent: id
-    Agent-->>API: flow
-    API-->>UI: "{ flow }"
-```
-
-### Explain and review
-
-```mermaid
-sequenceDiagram
-    participant UI as Web UI
-    participant API as Routes
-    participant Store as InMemoryStore
-    participant Validator as Structural validator
-    participant Agent as ReviewAgent
-    participant Provider as LLMProvider
-
-    UI->>API: "POST /flows/:id/explain"
-    API->>Store: get(id)
-    Store-->>API: flow
-    API->>Agent: explain(flow)
-    Agent->>Provider: complete(messages)
-    Provider-->>Agent: explanation
-    Agent-->>API: explanation
-    API-->>UI: "{ explanation }"
-
-    UI->>API: "POST /flows/:id/review"
-    API->>Store: get(id)
-    Store-->>API: flow
-    API->>Validator: check(flow)
-    Validator-->>API: structural issues
-    API->>Agent: review(flow)
-    Agent->>Provider: complete(messages)
-    Provider-->>Agent: semantic issues
-    Agent-->>API: semantic issues
-    API->>API: merge by severity
-    API-->>UI: "{ issues, summary }"
-```
-
-### Simulate
-
-```mermaid
-sequenceDiagram
-    participant UI as Web UI
-    participant API as Routes
-    participant Executor as FlowExecutor
-    participant Store as InMemoryStore
-
-    UI->>API: "POST /flows/:id/simulate/start"
-    API->>Store: get(flow)
-    API->>Executor: createSession(flow)
-    Executor->>Executor: auto-run until ask_question
-    Executor->>Store: save(session)
-    Executor-->>API: session, botMessages
-    API-->>UI: "{ session, botMessages }"
-
-    loop user replies
-        UI->>API: "POST /simulate/:sid/step { message }"
-        API->>Store: get(session)
-        API->>Executor: step(session, message)
-        Executor->>Executor: match branch or fallback
-        Executor->>Executor: auto-run until next wait or end
-        Executor->>Store: save(session)
-        Executor-->>API: session, bot messages, events
-        API-->>UI: "{ session, botMessages, events }"
-    end
-
-    UI->>API: "POST /simulate/:sid/reset"
-    API->>Executor: reset(sid)
-    Executor->>Store: save(new session)
-    Executor-->>API: session, botMessages
-    API-->>UI: "{ session, botMessages }"
-```
-
-The executor is deterministic. The LLM is never invoked during a simulation step.
+See [docs/architecture.md](./docs/architecture.md) for the full sequence diagrams.
 
 ---
 
