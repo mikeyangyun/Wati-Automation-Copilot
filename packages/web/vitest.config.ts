@@ -8,5 +8,6 @@ export default defineConfig({
     // between tests. Per-file `// @vitest-environment happy-dom` opts a single
     // test file into DOM emulation without affecting the node-environment tests.
     globals: true,
+    setupFiles: ['./vitest.setup.ts'],
   },
 });
