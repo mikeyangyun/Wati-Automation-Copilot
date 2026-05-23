@@ -598,3 +598,118 @@ describe('App — Review wiring (Phase 4)', () => {
     await waitFor(() => expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument());
   });
 });
+
+describe('App — Issue \u2194 Graph selection (Phase 5)', () => {
+  const flowWithAsk = buildFlow({
+    id: 'flow_sel',
+    entryNodeId: 'n_start',
+    nodes: [
+      { id: 'n_start', type: 'trigger', label: 'Start', config: {} },
+      {
+        id: 'n_ask',
+        type: 'ask_question',
+        label: 'Buyer or seller?',
+        config: { text: 'Buyer or seller?' },
+      },
+      { id: 'n_sales', type: 'assign_to_team', label: 'Sales', config: { team: 'Sales' } },
+    ],
+    edges: [
+      { id: 'e0', from: 'n_start', to: 'n_ask' },
+      { id: 'e1', from: 'n_ask', to: 'n_sales', condition: 'buyer' },
+    ],
+  });
+
+  const reviewWithAskIssue: ReviewResult = {
+    issues: [
+      {
+        severity: 'warning',
+        code: 'MISSING_FALLBACK',
+        message: '"Buyer or seller?" has no fallback edge.',
+        nodeIds: ['n_ask'],
+      },
+    ],
+    summary: '1 issue found (1 warning).',
+  };
+
+  async function setupReview() {
+    mockGenerate.mockResolvedValueOnce(flowWithAsk);
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(reviewWithAskIssue);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'route buyers/sellers');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+    return user;
+  }
+
+  it('clicking an issue card highlights the affected node in the graph (AC-V6)', async () => {
+    const user = await setupReview();
+
+    const askCard = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+    expect(askCard).not.toHaveAttribute('data-selected');
+
+    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
+
+    await waitFor(() => {
+      const updated = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+      expect(updated).toHaveAttribute('data-selected', 'true');
+    });
+
+    const trigger = document.querySelector('[data-node-type="trigger"]') as HTMLElement;
+    expect(trigger.style.opacity).toBe('0.45');
+  });
+
+  it('clicking the same issue card again deselects and removes the highlight', async () => {
+    const user = await setupReview();
+    const card = screen.getAllByRole('button', { pressed: false })[0]!;
+    await user.click(card);
+    await waitFor(() => {
+      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+      expect(ask).toHaveAttribute('data-selected', 'true');
+    });
+
+    await user.click(screen.getByRole('button', { pressed: true }));
+
+    await waitFor(() => {
+      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+      expect(ask).not.toHaveAttribute('data-selected');
+    });
+  });
+
+  it('clears the issue selection when the review block is closed', async () => {
+    const user = await setupReview();
+    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
+    await waitFor(() => {
+      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+      expect(ask).toHaveAttribute('data-selected', 'true');
+    });
+
+    await user.click(screen.getByRole('button', { name: /close review/i }));
+
+    const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+    expect(ask).not.toHaveAttribute('data-selected');
+  });
+
+  it('clears the issue selection when a new flow is generated', async () => {
+    const user = await setupReview();
+    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
+    await waitFor(() => {
+      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
+      expect(ask).toHaveAttribute('data-selected', 'true');
+    });
+
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_two' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    await user.clear(screen.getByLabelText(/prompt input/i));
+    await user.type(screen.getByLabelText(/prompt input/i), 'second');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    await waitFor(() => expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument());
+    const trigger = document.querySelector('[data-node-type="trigger"]') as HTMLElement;
+    // The new flow has only a trigger node; it should not be dimmed (no selection).
+    expect(trigger.style.opacity === '' || trigger.style.opacity === '1').toBe(true);
+  });
+});

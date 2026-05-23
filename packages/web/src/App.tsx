@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Severity } from 'shared';
 
 import {
   ApiError,
@@ -27,6 +28,9 @@ export function App() {
   const [simStatus, setSimStatus] = useState<SimulationStatus>({ kind: 'inactive' });
   const [explainStatus, setExplainStatus] = useState<ExplainStatus>({ kind: 'idle' });
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>({ kind: 'idle' });
+  // Index of the currently selected issue card. Drives graph highlighting.
+  // Null = nothing selected, which is the default and the post-regenerate state.
+  const [selectedIssueIndex, setSelectedIssueIndex] = useState<number | null>(null);
   const generateAbortRef = useRef<AbortController | null>(null);
   const simAbortRef = useRef<AbortController | null>(null);
   const explainAbortRef = useRef<AbortController | null>(null);
@@ -87,6 +91,7 @@ export function App() {
     setSimStatus({ kind: 'inactive' });
     setExplainStatus({ kind: 'idle' });
     setReviewStatus({ kind: 'idle' });
+    setSelectedIssueIndex(null);
     try {
       const flow = await generateFlow(prompt, controller.signal);
       if (controller.signal.aborted) return;
@@ -183,6 +188,8 @@ export function App() {
     // when the user re-triggers a review. No refreshing-overlay UX here.
     reviewAbortRef.current?.abort();
     setReviewStatus({ kind: 'loading' });
+    // A new review run invalidates whatever was previously selected.
+    setSelectedIssueIndex(null);
 
     const controller = new AbortController();
     reviewAbortRef.current = controller;
@@ -199,7 +206,21 @@ export function App() {
   const handleCloseReview = useCallback(() => {
     reviewAbortRef.current?.abort();
     setReviewStatus({ kind: 'idle' });
+    setSelectedIssueIndex(null);
   }, []);
+
+  // Derive the highlighted nodes + glow severity from review status +
+  // selection. Recompute on every render — cheap, and avoids a second source
+  // of truth for "which nodes are highlighted".
+  let selectedNodeIds: string[] = [];
+  let selectedSeverity: Severity | undefined;
+  if (reviewStatus.kind === 'ready' && selectedIssueIndex !== null) {
+    const issue = reviewStatus.result.issues[selectedIssueIndex];
+    if (issue) {
+      selectedNodeIds = issue.nodeIds;
+      selectedSeverity = issue.severity;
+    }
+  }
 
   return (
     <div className="app">
@@ -221,6 +242,10 @@ export function App() {
           onCloseExplain={handleCloseExplain}
           onReview={handleReview}
           onCloseReview={handleCloseReview}
+          selectedNodeIds={selectedNodeIds}
+          {...(selectedSeverity !== undefined ? { selectedSeverity } : {})}
+          selectedIssueIndex={selectedIssueIndex}
+          onSelectIssue={setSelectedIssueIndex}
         />
         <ChatPanel status={simStatus} onStep={handleStep} onReset={handleReset} />
       </main>
