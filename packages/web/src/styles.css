@@ -723,6 +723,41 @@ body {
   font-size: 14px;
 }
 
+/*
+ * Inline error banner shown *above* the chat input when a step/reset fails
+ * mid-conversation. Distinguished from .chat-error (the whole-panel state)
+ * by being compact and keeping the transcript above it visible.
+ */
+.chat-inline-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #d33;
+  background: #fdecec;
+  color: #5a0000;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.chat-inline-error strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.chat-inline-error-msg {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-inline-error-hint {
+  width: 100%;
+  color: #7a2828;
+  font-style: italic;
+}
+
 /* ---------- Graph view ---------- */
 
 .flow-graph {

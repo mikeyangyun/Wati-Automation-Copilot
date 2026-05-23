@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Message, SimulationEvent } from 'shared';
 
 import type { SessionEnvelope } from '../api.js';
-import type { SimulationStatus } from '../state.js';
+import type { AppErrorSummary, SimulationStatus } from '../state.js';
 
 export interface ChatPanelProps {
   status: SimulationStatus;
@@ -55,17 +55,26 @@ function ChatPanelBody({
         </div>
       );
     case 'active':
-      return <ActiveChat envelope={status.envelope} pending={status.pending} onStep={onStep} />;
+      return (
+        <ActiveChat
+          envelope={status.envelope}
+          pending={status.pending}
+          lastError={status.lastError}
+          onStep={onStep}
+        />
+      );
   }
 }
 
 function ActiveChat({
   envelope,
   pending,
+  lastError,
   onStep,
 }: {
   envelope: SessionEnvelope;
   pending: 'step' | 'reset' | undefined;
+  lastError: AppErrorSummary | undefined;
   onStep: (message: string) => void;
 }) {
   const [draft, setDraft] = useState('');
@@ -107,6 +116,14 @@ function ActiveChat({
           {envelope.session.status === 'completed'
             ? 'Conversation completed.'
             : 'Conversation handed off to a human team.'}
+        </div>
+      )}
+
+      {lastError !== undefined && (
+        <div className="chat-inline-error" role="alert" data-testid="chat-inline-error">
+          <strong>{lastError.code}</strong>
+          <span className="chat-inline-error-msg">{lastError.message}</span>
+          <span className="chat-inline-error-hint">Transcript preserved — try sending again.</span>
         </div>
       )}
 

@@ -19,11 +19,21 @@ export type AppStatus =
  * `active.pending` distinguishes idle from "step/reset in-flight" without
  * needing a separate spinner state; it also lets us disable the input
  * while preserving the visible transcript.
+ *
+ * `active.lastError` carries a transient step / reset failure without
+ * collapsing the whole panel — the transcript stays visible and the next
+ * successful step clears it. The top-level `error` variant is reserved for
+ * start-time failures, where there is no envelope to preserve.
  */
 export type SimulationStatus =
   | { kind: 'inactive' }
   | { kind: 'starting' }
-  | { kind: 'active'; envelope: SessionEnvelope; pending?: 'step' | 'reset' }
+  | {
+      kind: 'active';
+      envelope: SessionEnvelope;
+      pending?: 'step' | 'reset';
+      lastError?: AppErrorSummary;
+    }
   | { kind: 'error'; error: AppErrorSummary };
 
 /**

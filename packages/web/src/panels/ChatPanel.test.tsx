@@ -141,4 +141,40 @@ describe('ChatPanel', () => {
     await user.click(screen.getByRole('button', { name: /reset/i }));
     expect(onReset).toHaveBeenCalledTimes(1);
   });
+
+  describe('transient error banner (P0-2)', () => {
+    it('keeps the transcript and renders an inline banner when lastError is set', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope(),
+        lastError: { code: 'LLM_UNAVAILABLE', message: 'timeout', status: 502 },
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+
+      // Transcript stays visible…
+      expect(screen.getByTestId('chat-transcript')).toBeInTheDocument();
+      expect(screen.getByText('Buyer or seller?')).toBeInTheDocument();
+      // …and the banner is rendered with code + message + recovery hint.
+      const banner = screen.getByTestId('chat-inline-error');
+      expect(banner).toHaveTextContent('LLM_UNAVAILABLE');
+      expect(banner).toHaveTextContent('timeout');
+      expect(banner).toHaveTextContent(/transcript preserved/i);
+    });
+
+    it('keeps the input enabled after a transient failure so the user can retry', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope(),
+        lastError: { code: 'LLM_UNAVAILABLE', message: 'timeout', status: 502 },
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.getByLabelText(/reply input/i)).not.toBeDisabled();
+    });
+
+    it('does NOT render the inline banner when lastError is absent', () => {
+      const status: SimulationStatus = { kind: 'active', envelope: buildEnvelope() };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-inline-error')).not.toBeInTheDocument();
+    });
+  });
 });
