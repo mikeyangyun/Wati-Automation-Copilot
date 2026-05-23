@@ -18,6 +18,19 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/web/**/*.{ts,tsx}'],
     ...react.configs.flat.recommended,
     settings: { react: { version: 'detect' } },
