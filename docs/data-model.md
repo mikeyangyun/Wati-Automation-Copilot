@@ -90,7 +90,7 @@ Content-Type: application/json
 
 ## Simulation
 
-A session walks through a Flow step by step in mock chat. Advanced by user messages; resettable.
+A session walks through a Flow step by step in mock chat. Advanced by user messages; resettable. `start` is keyed by flow id (it creates a session); `step` and `reset` are keyed by the returned session id.
 
 ### Fields
 
@@ -159,9 +159,27 @@ Returned by `/review`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `severity` | enum | `error`, `warning`, or `info` |
-| `code` | string | Stable code, e.g. `MISSING_FALLBACK`, `UNREACHABLE_NODE` |
+| `code` | string | Stable code (see planned set below) |
 | `message` | string | Human-readable explanation |
 | `nodeIds` | string[] | Affected nodes, when applicable |
+
+### Planned codes (MVP)
+
+**Structural (validator):**
+
+- `MISSING_ENTRY` — no entry node or `entryNodeId` does not exist
+- `UNREACHABLE_NODE` — node not reachable from the entry
+- `MISSING_FALLBACK` — `ask_question` / `condition` without an unmatched fallback edge
+- `DUPLICATE_CONDITION` — multiple edges share the same `condition` label from the same source
+- `DANGLING_EDGE` — edge references a non-existent node
+
+**Semantic (`ReviewAgent`):**
+
+- `MISSING_BRANCH` — a business path described in the prompt is not present
+- `AMBIGUOUS_ROUTING` — branches the model considers under-specified
+- `UNCLEAR_QUESTION` — `ask_question` text is ambiguous or compound
+
+More codes may be added during implementation. The list above is the MVP target.
 
 ---
 
