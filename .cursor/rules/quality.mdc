@@ -1,0 +1,40 @@
+---
+description: Wati Copilot — validation, tests, observability, safe paths
+alwaysApply: true
+---
+
+# Quality — Wati Automation Copilot
+
+Applies to this repo only (`packages/shared`, `packages/server`, `packages/web`). Pair with [.cursor/rules/security.mdc](./security.mdc).
+
+## Validation (defence in depth)
+
+- **Boundaries:** Zod-validate every HTTP body and route param. Reject early with shared error shape (`INVALID_INPUT`, `FLOW_NOT_FOUND`, etc.).
+- **LLM output:** Parse through `packages/shared` Flow schema + bounded retry (`LLM_MAX_RETRY`). Never trust raw model JSON.
+- **Single schema:** One Zod type drives API, frontend, executor, and validator — do not fork types.
+- **Hybrid review:** structural validator findings are authoritative; LLM adds semantic issues only. Merge by severity — never drop or override rule-based defects.
+- **Reuse stored flows:** explain, review, and simulate load the saved flow — do not regenerate or re-call the LLM unless the endpoint requires it.
+
+## Unsafe paths to avoid
+
+- **Executor stays deterministic** — no LLM imports in `executor/` or simulation step handlers.
+- **Bounded retries** — LLM schema retry and simulation question retry must respect config caps; no unbounded loops or silent fallbacks.
+- **Fail fast** — missing config, unknown flow/session id, provider timeout → explicit error code; no empty 200s or swallowed exceptions.
+- **Store consistency** — load flow/session before mutate; handle missing ids before running agents or executor.
+
+## Testing
+
+- **Priority:** Vitest unit tests for `executor/` and `validator/` — these are pure, regression-prone, and demo-critical.
+- **Cover edge cases:** missing fallback, unreachable nodes, unclear user reply, max retry exceeded, dangling edges.
+- **Skip theater** — no trivial "returns true" tests; mock `LLMProvider` only when testing agents, not executor/validator.
+- **Regressions:** changing executor step logic or structural rules → add or update a test in the same change.
+
+## Observability
+
+- Use structured logging (Pino): `flowId`, `sessionId`, `endpoint`, `durationMs`, `error.code` — not full prompts, transcripts, or LLM bodies.
+- Simulation should emit step **events** (node entered, branch matched, fallback, retry) for debug and demo clarity.
+- Log provider failures with `LLM_UNAVAILABLE`; distinguish client 4xx from upstream 502.
+
+## Before finishing a change
+
+Ask: Did I validate inputs? Break an unsafe path? Need a test? Can someone debug this from logs alone?
