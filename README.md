@@ -98,9 +98,7 @@ Wati-Automation-Copilot/
 └── LICENSE
 ```
 
-Three workspace packages, one shared Flow schema. Agents and the executor live in `server`; the executor never imports anything from the LLM layer.
-
-The engineering plan ([../PLAN.md](../PLAN.md)) lives at the parent project root alongside the take-home brief.
+Three workspace packages plus shared docs.
 
 ---
 
@@ -181,7 +179,7 @@ All settings come from environment variables, parsed once at boot by a single ty
 | `LOG_LEVEL` | `info` | no | Pino log level (`trace` … `error`) |
 | `CORS_ORIGIN` | `http://localhost:5173` | no | Allowed SPA origin |
 
-A `.env.example` lives at the repo root and at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
+A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
 
 ---
 
@@ -190,7 +188,6 @@ A `.env.example` lives at the repo root and at `packages/server/.env.example`. S
 **Project docs**
 
 - Product specification — [PRODUCT.md](./PRODUCT.md)
-- Engineering plan — [../PLAN.md](../PLAN.md)
 - Architecture sequence diagrams — [docs/architecture.md](./docs/architecture.md)
 - Data model and REST reference — [docs/data-model.md](./docs/data-model.md)
 - Security rules — [.cursor/rules/security.mdc](./.cursor/rules/security.mdc)
@@ -203,3 +200,9 @@ A `.env.example` lives at the repo root and at `packages/server/.env.example`. S
 - Fastify — <https://fastify.dev/>
 - React Flow / `@xyflow/react` — <https://reactflow.dev/>
 - Zod — <https://zod.dev/>
+
+---
+
+## License
+
+Released under the [MIT License](./LICENSE).
