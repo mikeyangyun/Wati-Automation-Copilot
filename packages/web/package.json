@@ -14,7 +14,8 @@
     "@xyflow/react": "^12.3.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "shared": "workspace:*"
+    "shared": "workspace:*",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

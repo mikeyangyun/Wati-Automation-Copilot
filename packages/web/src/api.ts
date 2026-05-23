@@ -1,4 +1,25 @@
-import { FlowSchema, type Flow } from 'shared';
+import {
+  FlowSchema,
+  SessionSchema,
+  SimulationEventSchema,
+  type Flow,
+  type Session,
+  type SimulationEvent,
+} from 'shared';
+import { z } from 'zod';
+
+/**
+ * Server envelope returned by `start` / `step` / `reset` simulation endpoints.
+ * Kept here (not in shared) because it is purely an HTTP boundary type.
+ */
+export const SessionEnvelopeSchema = z.object({
+  session: SessionSchema,
+  botMessages: z.array(z.string()),
+  events: z.array(SimulationEventSchema),
+});
+export type SessionEnvelope = z.infer<typeof SessionEnvelopeSchema>;
+
+export type { Session, SimulationEvent };
 
 /**
  * Mirrors the server's error envelope shape: `{ error: { code, message } }`.
@@ -63,6 +84,35 @@ export class ApiClient {
     return parseFlowEnvelope(json);
   }
 
+  async startSession(flowId: string, signal?: AbortSignal): Promise<SessionEnvelope> {
+    const json = await this.requestJson(`/api/flows/${encodeURIComponent(flowId)}/simulate/start`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    return parseSessionEnvelope(json);
+  }
+
+  async stepSession(
+    sessionId: string,
+    message: string,
+    signal?: AbortSignal,
+  ): Promise<SessionEnvelope> {
+    const json = await this.requestJson(`/api/simulate/${encodeURIComponent(sessionId)}/step`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+      ...(signal ? { signal } : {}),
+    });
+    return parseSessionEnvelope(json);
+  }
+
+  async resetSession(sessionId: string, signal?: AbortSignal): Promise<SessionEnvelope> {
+    const json = await this.requestJson(`/api/simulate/${encodeURIComponent(sessionId)}/reset`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    return parseSessionEnvelope(json);
+  }
+
   private async requestJson(path: string, init: RequestInit): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
 
@@ -104,6 +154,18 @@ export const generateFlow = (prompt: string, signal?: AbortSignal): Promise<Flow
 export const getFlow = (id: string, signal?: AbortSignal): Promise<Flow> =>
   apiClient.getFlow(id, signal);
 
+export const startSession = (flowId: string, signal?: AbortSignal): Promise<SessionEnvelope> =>
+  apiClient.startSession(flowId, signal);
+
+export const stepSession = (
+  sessionId: string,
+  message: string,
+  signal?: AbortSignal,
+): Promise<SessionEnvelope> => apiClient.stepSession(sessionId, message, signal);
+
+export const resetSession = (sessionId: string, signal?: AbortSignal): Promise<SessionEnvelope> =>
+  apiClient.resetSession(sessionId, signal);
+
 function safeJsonParse(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -131,6 +193,18 @@ function parseFlowEnvelope(json: unknown): Flow {
     throw new ApiError(
       'INVALID_RESPONSE',
       `Server response did not match Flow schema: ${parsed.error.message.slice(0, 200)}`,
+      0,
+    );
+  }
+  return parsed.data;
+}
+
+function parseSessionEnvelope(json: unknown): SessionEnvelope {
+  const parsed = SessionEnvelopeSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new ApiError(
+      'INVALID_RESPONSE',
+      `Server response did not match SessionEnvelope schema: ${parsed.error.message.slice(0, 200)}`,
       0,
     );
   }

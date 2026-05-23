@@ -1,7 +1,7 @@
-import type { Flow } from 'shared';
+import type { Flow, Session } from 'shared';
 import { describe, expect, it } from 'vitest';
 
-import { ApiClient, ApiError } from './api.js';
+import { ApiClient, ApiError, type SessionEnvelope } from './api.js';
 
 const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
   id: 'flow_1',
@@ -183,5 +183,168 @@ describe('ApiError', () => {
     expect(err.message).toBe('bar');
     expect(err.code).toBe('FOO');
     expect(err.status).toBe(418);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Simulation endpoints — startSession / stepSession / resetSession
+// ---------------------------------------------------------------------------
+
+const buildSession = (overrides: Partial<Session> = {}): Session => ({
+  id: 'sess_1',
+  flowId: 'flow_1',
+  currentNodeId: 'n1',
+  status: 'waiting_for_input',
+  transcript: [],
+  context: { retryCount: 0 },
+  ...overrides,
+});
+
+const buildEnvelope = (overrides: Partial<SessionEnvelope> = {}): SessionEnvelope => ({
+  session: buildSession(),
+  botMessages: ['Buyer or seller?'],
+  events: [],
+  ...overrides,
+});
+
+describe('ApiClient.startSession', () => {
+  it('POSTs to /api/flows/:id/simulate/start and returns the parsed envelope', async () => {
+    const envelope = buildEnvelope();
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new ApiClient({
+      fetch: async (input, init) => {
+        calls.push({ url: input as string, init });
+        return new Response(JSON.stringify(envelope), { status: 200 });
+      },
+    });
+
+    const result = await client.startSession('flow_1');
+
+    expect(result).toEqual(envelope);
+    expect(calls[0]!.url).toBe('/api/flows/flow_1/simulate/start');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.init?.body).toBeUndefined();
+  });
+
+  it('encodes special characters in flowId', async () => {
+    const calls: string[] = [];
+    const client = new ApiClient({
+      fetch: async (input) => {
+        calls.push(input as string);
+        return new Response(JSON.stringify(buildEnvelope()), { status: 200 });
+      },
+    });
+    await client.startSession('flow/with space');
+    expect(calls[0]).toBe('/api/flows/flow%2Fwith%20space/simulate/start');
+  });
+
+  it('throws ApiError(FLOW_NOT_FOUND, 404) when the flow is missing', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(404, { error: { code: 'FLOW_NOT_FOUND', message: 'gone' } }),
+    });
+    await expect(client.startSession('flow_x')).rejects.toMatchObject({
+      code: 'FLOW_NOT_FOUND',
+      status: 404,
+    });
+  });
+
+  it('throws ApiError(INVALID_RESPONSE) when 200 body fails the envelope schema', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(200, { session: { id: 'sess_x' } /* botMessages/events missing */ }),
+    });
+    await expect(client.startSession('flow_1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+});
+
+describe('ApiClient.stepSession', () => {
+  it('POSTs the message body and returns the parsed envelope', async () => {
+    const envelope = buildEnvelope({
+      session: buildSession({ status: 'handed_off' }),
+      botMessages: ['Transferring you to the Sales team…'],
+      events: [
+        { type: 'branch', from: 'n1', to: 'n_buy', condition: 'buyer' },
+        { type: 'handoff', nodeId: 'n_buy', team: 'Sales' },
+      ],
+    });
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new ApiClient({
+      fetch: async (input, init) => {
+        calls.push({ url: input as string, init });
+        return new Response(JSON.stringify(envelope), { status: 200 });
+      },
+    });
+
+    const result = await client.stepSession('sess_1', 'buyer');
+
+    expect(result).toEqual(envelope);
+    expect(calls[0]!.url).toBe('/api/simulate/sess_1/step');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ message: 'buyer' });
+  });
+
+  it('forwards an AbortSignal to fetch', async () => {
+    let observed: AbortSignal | undefined;
+    const client = new ApiClient({
+      fetch: async (_input, init) => {
+        observed = init?.signal ?? undefined;
+        return new Response(JSON.stringify(buildEnvelope()), { status: 200 });
+      },
+    });
+    const controller = new AbortController();
+
+    await client.stepSession('sess_1', 'buyer', controller.signal);
+
+    expect(observed).toBe(controller.signal);
+  });
+
+  it('throws ApiError(INVALID_INPUT, 400) on validation failure', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(400, { error: { code: 'INVALID_INPUT', message: 'message: required' } }),
+    });
+    await expect(client.stepSession('sess_1', '')).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      status: 400,
+    });
+  });
+
+  it('throws ApiError(SESSION_NOT_FOUND, 404) when the session is unknown', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(404, { error: { code: 'SESSION_NOT_FOUND', message: 'gone' } }),
+    });
+    await expect(client.stepSession('sess_x', 'hi')).rejects.toMatchObject({
+      code: 'SESSION_NOT_FOUND',
+      status: 404,
+    });
+  });
+});
+
+describe('ApiClient.resetSession', () => {
+  it('POSTs (empty body) to /api/simulate/:sessionId/reset and returns the parsed envelope', async () => {
+    const envelope = buildEnvelope();
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new ApiClient({
+      fetch: async (input, init) => {
+        calls.push({ url: input as string, init });
+        return new Response(JSON.stringify(envelope), { status: 200 });
+      },
+    });
+
+    const result = await client.resetSession('sess_1');
+
+    expect(result).toEqual(envelope);
+    expect(calls[0]!.url).toBe('/api/simulate/sess_1/reset');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.init?.body).toBeUndefined();
+  });
+
+  it('throws ApiError(SESSION_NOT_FOUND, 404) when the session is unknown', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(404, { error: { code: 'SESSION_NOT_FOUND', message: 'gone' } }),
+    });
+    await expect(client.resetSession('sess_x')).rejects.toMatchObject({
+      code: 'SESSION_NOT_FOUND',
+      status: 404,
+    });
   });
 });
