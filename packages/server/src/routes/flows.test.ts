@@ -1,4 +1,4 @@
-import type { Flow } from 'shared';
+import type { Flow, Issue } from 'shared';
 import { pino } from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -13,6 +13,9 @@ const silentLogger = pino({ level: 'silent' });
 const noopReviewer: FlowReviewer = {
   explain: async () => {
     throw new Error('flows.test.ts does not exercise explain; this stub is unreachable');
+  },
+  review: async () => {
+    throw new Error('flows.test.ts does not exercise review; this stub is unreachable');
   },
 };
 
@@ -252,6 +255,10 @@ class StubReviewer implements FlowReviewer {
     }
     return this.behavior.explanation;
   }
+
+  async review(_flow: Flow): Promise<never> {
+    throw new Error('StubReviewer.review is unreachable in explain tests');
+  }
 }
 
 const noopAgentForExplain: FlowGenerator = {
@@ -356,6 +363,219 @@ describe('POST /api/flows/:id/explain — error paths', () => {
       expect(res.statusCode).toBe(500);
       const body = res.json() as { error: { code: string } };
       expect(body.error.code).toBe('INTERNAL');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/flows/:id/review — Phase 4
+// ---------------------------------------------------------------------------
+
+class StubReviewerForReview implements FlowReviewer {
+  public reviewCallCount = 0;
+  public lastReviewFlowId: string | undefined;
+
+  constructor(
+    private readonly behavior: { kind: 'ok'; issues: Issue[] } | { kind: 'throw'; error: unknown },
+  ) {}
+
+  async explain(): Promise<string> {
+    throw new Error('review-route tests do not exercise explain');
+  }
+
+  async review(flow: Flow): Promise<Issue[]> {
+    this.reviewCallCount += 1;
+    this.lastReviewFlowId = flow.id;
+    if (this.behavior.kind === 'throw') {
+      throw this.behavior.error;
+    }
+    return this.behavior.issues;
+  }
+}
+
+function completeFlowFixture(overrides: Partial<Flow> = {}): Flow {
+  return {
+    id: 'flow_review_ok',
+    name: 'Buyer / Seller',
+    prompt: 'route buyers and sellers',
+    trigger: { type: 'new_message' },
+    entryNodeId: 'n_start',
+    nodes: [
+      { id: 'n_start', type: 'trigger', label: 'Start', config: {} },
+      {
+        id: 'n_ask',
+        type: 'ask_question',
+        label: 'Ask',
+        config: { text: 'Are you a buyer or seller?' },
+      },
+      { id: 'n_sales', type: 'assign_to_team', label: 'Sales', config: { team: 'Sales' } },
+      { id: 'n_default', type: 'assign_to_team', label: 'Default', config: { team: 'Support' } },
+    ],
+    edges: [
+      { id: 'e0', from: 'n_start', to: 'n_ask' },
+      { id: 'e_buy', from: 'n_ask', to: 'n_sales', condition: 'buyer' },
+      { id: 'e_default', from: 'n_ask', to: 'n_default' },
+    ],
+    createdAt: '2026-05-23T10:00:00Z',
+    ...overrides,
+  };
+}
+
+function missingFallbackFixture(): Flow {
+  const flow = completeFlowFixture({ id: 'flow_missing_fb' });
+  flow.edges = flow.edges.filter((e) => e.id !== 'e_default');
+  return flow;
+}
+
+describe('POST /api/flows/:id/review — happy path (AC-R1, AC-R3, AC-R10)', () => {
+  it('returns 200 with empty issues and "No issues found." for a clean flow', async () => {
+    const flow = completeFlowFixture();
+    const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ issues: [], summary: 'No issues found.' });
+      expect(reviewer.reviewCallCount).toBe(1);
+      expect(reviewer.lastReviewFlowId).toBe(flow.id);
+    });
+  });
+
+  it('includes structural findings for a defective flow (AC-R4)', async () => {
+    const flow = missingFallbackFixture();
+    const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { issues: Issue[]; summary: string };
+      expect(body.issues).toHaveLength(1);
+      expect(body.issues[0]).toMatchObject({
+        severity: 'warning',
+        code: 'MISSING_FALLBACK',
+        nodeIds: ['n_ask'],
+      });
+      expect(body.summary).toBe('1 issue found (1 warning).');
+    });
+  });
+});
+
+describe('POST /api/flows/:id/review — merge (AC-R8)', () => {
+  it('drops a semantic issue that lands on a structurally-flagged node', async () => {
+    const flow = missingFallbackFixture();
+    const semantic: Issue = {
+      severity: 'info',
+      code: 'UNCLEAR_QUESTION',
+      message: 'The ask_question text is compound.',
+      nodeIds: ['n_ask'],
+    };
+    const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [semantic] });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      const body = res.json() as { issues: Issue[]; summary: string };
+      expect(body.issues).toHaveLength(1);
+      expect(body.issues[0]!.code).toBe('MISSING_FALLBACK');
+    });
+  });
+
+  it('keeps flow-level semantic findings even when structural is non-empty', async () => {
+    const flow = missingFallbackFixture();
+    const semantic: Issue = {
+      severity: 'warning',
+      code: 'MISSING_BRANCH',
+      message: 'The prompt mentions VIP customers but no node covers them.',
+      nodeIds: [],
+    };
+    const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [semantic] });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      const body = res.json() as { issues: Issue[]; summary: string };
+      expect(body.issues).toHaveLength(2);
+      expect(body.summary).toBe('2 issues found (2 warnings).');
+    });
+  });
+});
+
+describe('POST /api/flows/:id/review — LLM degradation (AC-R9)', () => {
+  it('returns 200 with SEMANTIC_REVIEW_UNAVAILABLE info issue when reviewer throws', async () => {
+    const flow = completeFlowFixture({ id: 'flow_review_llm_down' });
+    const reviewer = new StubReviewerForReview({
+      kind: 'throw',
+      error: new AppError('LLM_UNAVAILABLE', 'provider down', 502),
+    });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { issues: Issue[]; summary: string };
+      expect(body.issues).toHaveLength(1);
+      expect(body.issues[0]).toMatchObject({
+        severity: 'info',
+        code: 'SEMANTIC_REVIEW_UNAVAILABLE',
+      });
+      expect(body.summary).toBe('1 issue found (1 info).');
+    });
+  });
+
+  it('returns 200 with structural + SEMANTIC_REVIEW_UNAVAILABLE when both signals present', async () => {
+    const flow = missingFallbackFixture();
+    const reviewer = new StubReviewerForReview({
+      kind: 'throw',
+      error: new Error('transport blew up'),
+    });
+
+    await withReviewerApp(reviewer, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/flows/${flow.id}/review`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { issues: Issue[]; summary: string };
+      expect(body.issues).toHaveLength(2);
+      const codes = body.issues.map((i) => i.code);
+      expect(codes).toContain('MISSING_FALLBACK');
+      expect(codes).toContain('SEMANTIC_REVIEW_UNAVAILABLE');
+      expect(body.summary).toBe('2 issues found (1 warning, 1 info).');
+    });
+  });
+});
+
+describe('POST /api/flows/:id/review — error paths (AC-R2)', () => {
+  it('returns 404 FLOW_NOT_FOUND when the flow id is unknown and does not call reviewer', async () => {
+    const reviewer = new StubReviewerForReview({ kind: 'ok', issues: [] });
+
+    await withReviewerApp(reviewer, async (app) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/flows/flow_does_not_exist/review',
+      });
+      expect(res.statusCode).toBe(404);
+      const body = res.json() as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('FLOW_NOT_FOUND');
+      expect(reviewer.reviewCallCount).toBe(0);
     });
   });
 });
