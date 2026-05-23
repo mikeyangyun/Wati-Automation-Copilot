@@ -43,7 +43,7 @@ describe('IssueSchema', () => {
     ).toThrow();
   });
 
-  it('exposes the full MVP code set', () => {
+  it('exposes the documented issue code set', () => {
     const codes = IssueCodeEnum.options;
     expect(codes).toEqual(
       expect.arrayContaining([
