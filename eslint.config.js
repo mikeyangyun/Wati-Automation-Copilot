@@ -47,5 +47,24 @@ export default [
       'react-hooks/exhaustive-deps': 'warn',
     },
   },
+  // Architecture invariant: the deterministic `executor/` must never depend on
+  // LLM-driven modules. Catches accidental drift at lint time so CI fails fast.
+  {
+    files: ['packages/server/src/executor/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/llm/**', '**/agents/**', '../llm/*', '../agents/*'],
+              message:
+                'executor/ must remain LLM-free (see docs/architecture.md). Move shared types to packages/shared or invert the dependency.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ];

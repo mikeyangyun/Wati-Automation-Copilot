@@ -7,7 +7,8 @@ export type ErrorCode =
   | 'SESSION_NOT_FOUND'
   | 'LLM_OUTPUT_INVALID'
   | 'LLM_UNAVAILABLE'
-  | 'NOT_FOUND';
+  | 'NOT_FOUND'
+  | 'INTERNAL';
 
 export class AppError extends Error {
   public readonly code: ErrorCode;
