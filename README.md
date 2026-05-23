@@ -138,3 +138,24 @@ See [docs/architecture.md](./docs/architecture.md) for the full sequence diagram
 Two resources: **Flow** (the generated automation, with nodes and edges) and **Simulation** (a session walking through a flow). Review findings come back as typed issues with severity.
 
 See [docs/data-model.md](./docs/data-model.md) for entity fields, REST endpoints, request/response examples, status codes, and the shared error shape.
+
+---
+
+## Configuration
+
+All settings come from environment variables, parsed once at boot by a single typed `config` module in `packages/server`. The process fails fast on missing required values; nothing else in the code reads `process.env` directly (see Design Principle 6).
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `LLM_PROVIDER` | `deepseek` | no | Which `LLMProvider` adapter to load (`deepseek`, `openai`, ...) |
+| `LLM_MODEL` | `deepseek-chat` | no | Model id passed to the provider |
+| `LLM_API_KEY` | — | **yes** | Provider API key. **Secret — server-only, never exposed to the browser** |
+| `LLM_BASE_URL` | provider default | no | Override endpoint (self-hosted, proxy) |
+| `LLM_TIMEOUT_MS` | `30000` | no | Per-request timeout for the provider |
+| `LLM_MAX_RETRY` | `1` | no | Retries when LLM output fails Zod schema parsing |
+| `SIMULATION_MAX_RETRY` | `2` | no | Question re-asks in mock chat before falling back |
+| `PORT` | `3000` | no | Fastify HTTP port |
+| `LOG_LEVEL` | `info` | no | Pino log level (`trace` … `error`) |
+| `CORS_ORIGIN` | `http://localhost:5173` | no | Allowed SPA origin |
+
+A `.env.example` lives at the repo root and at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
