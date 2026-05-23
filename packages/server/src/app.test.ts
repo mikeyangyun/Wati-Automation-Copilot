@@ -32,11 +32,26 @@ describe('buildApp', () => {
     }
   });
 
-  it('returns 404 for unknown paths under /api', async () => {
+  it('returns a 404 in the standard {error:{code,message}} shape for unknown paths', async () => {
     const app = await buildApp({ loggerInstance: silentLogger, ...minimalDeps() });
     try {
       const res = await app.inject({ method: 'GET', url: '/api/does-not-exist' });
       expect(res.statusCode).toBe(404);
+      const body = res.json() as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('NOT_FOUND');
+      expect(body.error.message).toMatch(/does-not-exist/);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('returns a 404 NOT_FOUND for unknown paths outside /api as well', async () => {
+    const app = await buildApp({ loggerInstance: silentLogger, ...minimalDeps() });
+    try {
+      const res = await app.inject({ method: 'GET', url: '/totally-unknown' });
+      expect(res.statusCode).toBe(404);
+      const body = res.json() as { error: { code: string } };
+      expect(body.error.code).toBe('NOT_FOUND');
     } finally {
       await app.close();
     }

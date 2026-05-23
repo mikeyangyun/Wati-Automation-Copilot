@@ -25,6 +25,14 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   });
 
   app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler((req, reply) => {
+    void reply.status(404).send({
+      error: {
+        code: 'NOT_FOUND',
+        message: `Route ${req.method}:${req.url} not found`,
+      },
+    });
+  });
 
   const store = opts.store ?? new InMemoryStore();
   const agent = opts.agent ?? createDefaultAgent();
