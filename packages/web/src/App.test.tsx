@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import type { Flow, Session } from 'shared';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -282,10 +282,10 @@ describe('App — simulation auto-start + step + reset', () => {
     expect(mockReset).toHaveBeenCalledWith('sess_1', expect.any(AbortSignal));
   });
 
-  it('renders an alert in the chat panel when a step fails', async () => {
+  it('preserves the transcript and renders an inline banner when a step fails (P0-2)', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());
-    mockStep.mockRejectedValueOnce(new ApiError('SESSION_NOT_FOUND', 'gone', 404));
+    mockStep.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'timeout', 502));
     const user = userEvent.setup();
     render(<App />);
     await generate(user);
@@ -294,8 +294,43 @@ describe('App — simulation auto-start + step + reset', () => {
     await user.type(screen.getByLabelText(/reply input/i), 'hi');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('SESSION_NOT_FOUND');
+    const banner = await screen.findByTestId('chat-inline-error');
+    expect(banner).toHaveTextContent('LLM_UNAVAILABLE');
+    // The transcript stays intact (we do NOT collapse to the kind:'error' state).
+    expect(screen.getByTestId('chat-transcript')).toHaveTextContent('Buyer or seller?');
+    // And the input is still enabled so the user can retry.
+    expect(screen.getByLabelText(/reply input/i)).not.toBeDisabled();
+  });
+
+  it('clears the inline banner once the next step succeeds (P0-2)', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockStep.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'timeout', 502));
+    mockStep.mockResolvedValueOnce(
+      buildEnvelope({
+        session: buildSession({
+          transcript: [
+            { role: 'bot', content: 'Buyer or seller?', nodeId: 'n1', timestamp: 't1' },
+            { role: 'user', content: 'buyer', timestamp: 't2' },
+            { role: 'bot', content: 'Sales handoff.', nodeId: 'n_buy', timestamp: 't3' },
+          ],
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('chat-transcript');
+
+    await user.type(screen.getByLabelText(/reply input/i), 'buyer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByTestId('chat-inline-error');
+
+    await user.type(screen.getByLabelText(/reply input/i), 'buyer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(screen.queryByTestId('chat-inline-error')).not.toBeInTheDocument());
+    expect(screen.getByTestId('chat-transcript')).toHaveTextContent('Sales handoff');
   });
 
   it('shows "Starting simulation…" while startSession is in flight', async () => {
@@ -645,61 +680,65 @@ describe('App — Issue \u2194 Graph selection (Phase 5)', () => {
     return user;
   }
 
+  // Scope the issue click to the right severity row instead of relying on
+  // `getAllByRole('button')[0]`. Robust to extra buttons elsewhere in the UI.
+  const getIssueButton = (severity: 'error' | 'warning' | 'info'): HTMLElement =>
+    within(screen.getByTestId(`issue-${severity}`)).getByRole('button');
+
+  // Scope graph-node assertions to the FlowGraph surface so we don't reach into
+  // unrelated DOM. The graph publishes `data-node-type` on each node card.
+  const getGraphNode = (type: string): HTMLElement => {
+    const graph = screen.getByTestId('flow-graph');
+    const card = graph.querySelector(`[data-node-type="${type}"]`);
+    if (!card) throw new Error(`no node-card for type=${type}`);
+    return card as HTMLElement;
+  };
+
   it('clicking an issue card highlights the affected node in the graph (AC-V6)', async () => {
     const user = await setupReview();
 
-    const askCard = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-    expect(askCard).not.toHaveAttribute('data-selected');
+    expect(getGraphNode('ask_question')).not.toHaveAttribute('data-selected');
 
-    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
+    await user.click(getIssueButton('warning'));
 
-    await waitFor(() => {
-      const updated = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-      expect(updated).toHaveAttribute('data-selected', 'true');
-    });
-
-    const trigger = document.querySelector('[data-node-type="trigger"]') as HTMLElement;
-    expect(trigger.style.opacity).toBe('0.45');
+    await waitFor(() =>
+      expect(getGraphNode('ask_question')).toHaveAttribute('data-selected', 'true'),
+    );
+    expect(getGraphNode('trigger').style.opacity).toBe('0.45');
   });
 
   it('clicking the same issue card again deselects and removes the highlight', async () => {
     const user = await setupReview();
-    const card = screen.getAllByRole('button', { pressed: false })[0]!;
-    await user.click(card);
-    await waitFor(() => {
-      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-      expect(ask).toHaveAttribute('data-selected', 'true');
-    });
 
-    await user.click(screen.getByRole('button', { pressed: true }));
+    await user.click(getIssueButton('warning'));
+    await waitFor(() =>
+      expect(getGraphNode('ask_question')).toHaveAttribute('data-selected', 'true'),
+    );
 
-    await waitFor(() => {
-      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-      expect(ask).not.toHaveAttribute('data-selected');
-    });
+    await user.click(getIssueButton('warning'));
+    await waitFor(() => expect(getGraphNode('ask_question')).not.toHaveAttribute('data-selected'));
   });
 
   it('clears the issue selection when the review block is closed', async () => {
     const user = await setupReview();
-    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
-    await waitFor(() => {
-      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-      expect(ask).toHaveAttribute('data-selected', 'true');
-    });
+
+    await user.click(getIssueButton('warning'));
+    await waitFor(() =>
+      expect(getGraphNode('ask_question')).toHaveAttribute('data-selected', 'true'),
+    );
 
     await user.click(screen.getByRole('button', { name: /close review/i }));
 
-    const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-    expect(ask).not.toHaveAttribute('data-selected');
+    expect(getGraphNode('ask_question')).not.toHaveAttribute('data-selected');
   });
 
   it('clears the issue selection when a new flow is generated', async () => {
     const user = await setupReview();
-    await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
-    await waitFor(() => {
-      const ask = document.querySelector('[data-node-type="ask_question"]') as HTMLElement;
-      expect(ask).toHaveAttribute('data-selected', 'true');
-    });
+
+    await user.click(getIssueButton('warning'));
+    await waitFor(() =>
+      expect(getGraphNode('ask_question')).toHaveAttribute('data-selected', 'true'),
+    );
 
     mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_two' }));
     mockStart.mockResolvedValueOnce(buildEnvelope());
@@ -708,7 +747,7 @@ describe('App — Issue \u2194 Graph selection (Phase 5)', () => {
     await user.click(screen.getByRole('button', { name: /generate/i }));
 
     await waitFor(() => expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument());
-    const trigger = document.querySelector('[data-node-type="trigger"]') as HTMLElement;
+    const trigger = getGraphNode('trigger');
     // The new flow has only a trigger node; it should not be dimmed (no selection).
     expect(trigger.style.opacity === '' || trigger.style.opacity === '1').toBe(true);
   });

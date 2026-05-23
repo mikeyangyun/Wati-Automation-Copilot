@@ -107,7 +107,9 @@ export function App() {
     if (current.kind !== 'active') return;
     const sessionId = current.envelope.session.id;
 
-    setSimStatus((s) => (s.kind === 'active' ? { ...s, pending: 'step' } : s));
+    setSimStatus((s) =>
+      s.kind === 'active' ? { ...s, pending: 'step', lastError: undefined } : s,
+    );
     simAbortRef.current?.abort();
     const controller = new AbortController();
     simAbortRef.current = controller;
@@ -117,7 +119,14 @@ export function App() {
       setSimStatus({ kind: 'active', envelope });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setSimStatus({ kind: 'error', error: summariseError(err) });
+      // Keep the transcript visible: fold the failure into the active state
+      // as `lastError` instead of collapsing the whole panel. The next
+      // successful step / reset clears the banner.
+      setSimStatus((s) =>
+        s.kind === 'active'
+          ? { ...s, pending: undefined, lastError: summariseError(err) }
+          : { kind: 'error', error: summariseError(err) },
+      );
     }
   }, []);
 
@@ -126,7 +135,9 @@ export function App() {
     if (current.kind !== 'active') return;
     const sessionId = current.envelope.session.id;
 
-    setSimStatus((s) => (s.kind === 'active' ? { ...s, pending: 'reset' } : s));
+    setSimStatus((s) =>
+      s.kind === 'active' ? { ...s, pending: 'reset', lastError: undefined } : s,
+    );
     simAbortRef.current?.abort();
     const controller = new AbortController();
     simAbortRef.current = controller;
@@ -136,7 +147,11 @@ export function App() {
       setSimStatus({ kind: 'active', envelope });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setSimStatus({ kind: 'error', error: summariseError(err) });
+      setSimStatus((s) =>
+        s.kind === 'active'
+          ? { ...s, pending: undefined, lastError: summariseError(err) }
+          : { kind: 'error', error: summariseError(err) },
+      );
     }
   }, []);
 
