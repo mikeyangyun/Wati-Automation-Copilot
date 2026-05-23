@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DeepSeekProvider } from './deepseek.js';
 import { createLLMProvider } from './factory.js';
 import { MockLLMProvider } from './mock.js';
 
@@ -9,12 +10,16 @@ describe('createLLMProvider', () => {
     expect(provider).toBeInstanceOf(MockLLMProvider);
   });
 
-  it('throws on an unknown provider name', () => {
-    expect(() => createLLMProvider({ provider: 'cohere' })).toThrow(/unknown.*provider/i);
+  it('returns a DeepSeekProvider when provider is "deepseek" and apiKey is set', () => {
+    const provider = createLLMProvider({ provider: 'deepseek', apiKey: 'sk-test' });
+    expect(provider).toBeInstanceOf(DeepSeekProvider);
   });
 
-  it('throws on the deepseek provider until it is implemented', () => {
-    // Replaced by a real assertion in T2 (DeepSeekProvider).
-    expect(() => createLLMProvider({ provider: 'deepseek' })).toThrow();
+  it('throws when the deepseek provider has no apiKey', () => {
+    expect(() => createLLMProvider({ provider: 'deepseek' })).toThrow(/apiKey/i);
+  });
+
+  it('throws on an unknown provider name', () => {
+    expect(() => createLLMProvider({ provider: 'cohere' })).toThrow(/unknown.*provider/i);
   });
 });
