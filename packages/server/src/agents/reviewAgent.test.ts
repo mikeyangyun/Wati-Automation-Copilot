@@ -175,3 +175,142 @@ describe('ReviewAgent.explain — semantic anchors (AC-E2, should-priority)', ()
     expect(result.toLowerCase()).toMatch(/messages|contact|reply/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// review (Phase 4)
+// ---------------------------------------------------------------------------
+
+const validReviewPayload = JSON.stringify([
+  {
+    severity: 'warning',
+    code: 'MISSING_BRANCH',
+    message: 'The original prompt mentions VIP customers but no branch handles them.',
+    nodeIds: ['n1'],
+  },
+  {
+    severity: 'info',
+    code: 'UNCLEAR_QUESTION',
+    message: 'The ask_question text bundles two distinct intents into one prompt.',
+    nodeIds: ['n1'],
+  },
+]);
+
+describe('ReviewAgent.review — happy paths', () => {
+  it('parses a valid JSON payload and returns the matching Issue array', async () => {
+    const provider = new MockLLMProvider([validReviewPayload]);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ code: 'MISSING_BRANCH', severity: 'warning' });
+    expect(result[1]).toMatchObject({ code: 'UNCLEAR_QUESTION', severity: 'info' });
+    expect(provider.callCount).toBe(1);
+  });
+
+  it('returns an empty array when the LLM finds no semantic issues', async () => {
+    const provider = new MockLLMProvider(['[]']);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toEqual([]);
+  });
+
+  it('strips a ```json fence around the payload', async () => {
+    const fenced = `\`\`\`json\n${validReviewPayload}\n\`\`\``;
+    const provider = new MockLLMProvider([fenced]);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toHaveLength(2);
+  });
+
+  it('defaults nodeIds to [] when the LLM omits the field', async () => {
+    const payload = JSON.stringify([
+      {
+        severity: 'warning',
+        code: 'AMBIGUOUS_ROUTING',
+        message: 'The two branches overlap.',
+      },
+    ]);
+    const provider = new MockLLMProvider([payload]);
+    const agent = new ReviewAgent({ provider });
+    const [issue] = await agent.review(sampleFlow());
+    expect(issue!.nodeIds).toEqual([]);
+  });
+});
+
+describe('ReviewAgent.review — schema gate rejects bad LLM output', () => {
+  it('rejects a structural code and retries', async () => {
+    const bad = JSON.stringify([
+      { severity: 'error', code: 'MISSING_FALLBACK', message: 'no fallback', nodeIds: ['n1'] },
+    ]);
+    const provider = new MockLLMProvider([bad, validReviewPayload]);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toHaveLength(2);
+    expect(provider.callCount).toBe(2);
+  });
+
+  it('rejects an object (non-array) payload and retries', async () => {
+    const bad = JSON.stringify({ issues: [] });
+    const provider = new MockLLMProvider([bad, '[]']);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toEqual([]);
+    expect(provider.callCount).toBe(2);
+  });
+
+  it('rejects malformed JSON and retries', async () => {
+    const provider = new MockLLMProvider(['{not-json', '[]']);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toEqual([]);
+    expect(provider.callCount).toBe(2);
+  });
+
+  it('rejects an unknown severity and retries', async () => {
+    const bad = JSON.stringify([
+      { severity: 'critical', code: 'MISSING_BRANCH', message: 'x', nodeIds: [] },
+    ]);
+    const provider = new MockLLMProvider([bad, '[]']);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toEqual([]);
+    expect(provider.callCount).toBe(2);
+  });
+});
+
+describe('ReviewAgent.review — retry semantics & failure surfacing', () => {
+  it('retries once on a transport error then returns the valid second attempt', async () => {
+    const provider = new MockLLMProvider([new Error('socket hang up'), validReviewPayload]);
+    const agent = new ReviewAgent({ provider });
+    const result = await agent.review(sampleFlow());
+    expect(result).toHaveLength(2);
+    expect(provider.callCount).toBe(2);
+  });
+
+  it('throws 502 LLM_UNAVAILABLE when all attempts fail validation', async () => {
+    const provider = new MockLLMProvider(['nope', 'still nope']);
+    const agent = new ReviewAgent({ provider });
+    await expect(agent.review(sampleFlow())).rejects.toMatchObject({
+      code: 'LLM_UNAVAILABLE',
+      statusCode: 502,
+    });
+    expect(provider.callCount).toBe(2);
+  });
+
+  it('throws 502 LLM_UNAVAILABLE when all attempts throw at transport layer', async () => {
+    const provider = new MockLLMProvider([new Error('timeout'), new Error('reset')]);
+    const agent = new ReviewAgent({ provider });
+    await expect(agent.review(sampleFlow())).rejects.toMatchObject({
+      code: 'LLM_UNAVAILABLE',
+      statusCode: 502,
+    });
+  });
+
+  it('honours maxRetry=0 (single attempt, no retry)', async () => {
+    const provider = new MockLLMProvider(['nope']);
+    const agent = new ReviewAgent({ provider, maxRetry: 0 });
+    await expect(agent.review(sampleFlow())).rejects.toMatchObject({
+      code: 'LLM_UNAVAILABLE',
+    });
+    expect(provider.callCount).toBe(1);
+  });
+});
