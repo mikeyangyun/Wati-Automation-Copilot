@@ -6,7 +6,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AppStatus, ExplainStatus } from '../state.js';
+import type { ReviewResult } from '../api.js';
+import type { AppStatus, ExplainStatus, ReviewStatus } from '../state.js';
 import { FlowPanel } from './FlowPanel.js';
 
 const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
@@ -22,18 +23,30 @@ const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
 });
 
 const idleExplain: ExplainStatus = { kind: 'idle' };
+const idleReview: ReviewStatus = { kind: 'idle' };
+
+interface RenderHandlers {
+  onExplain?: () => void;
+  onCloseExplain?: () => void;
+  onReview?: () => void;
+  onCloseReview?: () => void;
+}
 
 function renderPanel(
   status: AppStatus,
   explainStatus: ExplainStatus = idleExplain,
-  handlers: { onExplain?: () => void; onCloseExplain?: () => void } = {},
+  handlers: RenderHandlers = {},
+  reviewStatus: ReviewStatus = idleReview,
 ) {
   return render(
     <FlowPanel
       status={status}
       explainStatus={explainStatus}
+      reviewStatus={reviewStatus}
       onExplain={handlers.onExplain ?? vi.fn()}
       onCloseExplain={handlers.onCloseExplain ?? vi.fn()}
+      onReview={handlers.onReview ?? vi.fn()}
+      onCloseReview={handlers.onCloseReview ?? vi.fn()}
     />,
   );
 }
@@ -152,5 +165,135 @@ describe('FlowPanel — Explain interaction', () => {
 
     await user.click(screen.getByRole('button', { name: /close explanation/i }));
     expect(onCloseExplain).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('FlowPanel — Review interaction (Phase 4)', () => {
+  const flow = buildFlow();
+  const readyStatus: AppStatus = { kind: 'ready', flow };
+
+  const buildResult = (overrides: Partial<ReviewResult> = {}): ReviewResult => ({
+    issues: [
+      {
+        severity: 'warning',
+        code: 'MISSING_FALLBACK',
+        message: '"Ask buyer/seller" has no fallback edge.',
+        nodeIds: ['n_ask'],
+      },
+    ],
+    summary: '1 issue found (1 warning).',
+    ...overrides,
+  });
+
+  it('does not render a Review button when no flow is ready', () => {
+    renderPanel({ kind: 'idle' });
+    expect(screen.queryByRole('button', { name: /review/i })).not.toBeInTheDocument();
+  });
+
+  it('renders a Review button next to Explain when status is ready', () => {
+    renderPanel(readyStatus);
+    expect(screen.getByRole('button', { name: 'Review' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
+  });
+
+  it('invokes onReview when the Review button is clicked', async () => {
+    const onReview = vi.fn();
+    const user = userEvent.setup();
+    renderPanel(readyStatus, idleExplain, { onReview }, idleReview);
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    expect(onReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the loading placeholder and disables the Review button while loading', () => {
+    renderPanel(readyStatus, idleExplain, {}, { kind: 'loading' });
+    expect(screen.getByTestId('review-loading')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reviewing/i })).toBeDisabled();
+  });
+
+  it('renders IssueList for a ready review and switches button label to Refresh', () => {
+    renderPanel(readyStatus, idleExplain, {}, { kind: 'ready', result: buildResult() });
+    expect(screen.getByTestId('issue-list')).toBeInTheDocument();
+    expect(screen.getByText('1 issue found (1 warning).')).toBeInTheDocument();
+    expect(screen.getByText('MISSING_FALLBACK')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refresh review/i })).toBeEnabled();
+  });
+
+  it('renders the empty-state message when issues is empty', () => {
+    const result = buildResult({ issues: [], summary: 'No issues found.' });
+    renderPanel(readyStatus, idleExplain, {}, { kind: 'ready', result });
+    expect(screen.getByTestId('issue-list-empty')).toBeInTheDocument();
+    expect(screen.getByText('No issues found.')).toBeInTheDocument();
+  });
+
+  it('renders the error alert and surfaces a Refresh review button for retry', () => {
+    renderPanel(
+      readyStatus,
+      idleExplain,
+      {},
+      {
+        kind: 'error',
+        error: { code: 'FLOW_NOT_FOUND', message: 'gone', status: 404 },
+      },
+    );
+    const alert = screen.getByTestId('review-error');
+    expect(alert).toHaveTextContent('FLOW_NOT_FOUND');
+    expect(alert).toHaveTextContent('gone');
+    // After an error, the primary action becomes "retry"; this also confirms
+    // the button is not disabled (loading would have flipped it to "Reviewing…").
+    expect(screen.getByRole('button', { name: /refresh review/i })).toBeEnabled();
+  });
+
+  it('invokes onCloseReview when the × button is clicked', async () => {
+    const onCloseReview = vi.fn();
+    const user = userEvent.setup();
+    renderPanel(
+      readyStatus,
+      idleExplain,
+      { onCloseReview },
+      { kind: 'ready', result: buildResult() },
+    );
+    await user.click(screen.getByRole('button', { name: /close review/i }));
+    expect(onCloseReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the review block above the flow JSON in DOM order', () => {
+    renderPanel(readyStatus, idleExplain, {}, { kind: 'ready', result: buildResult() });
+    const block = screen.getByTestId('review');
+    const json = screen.getByTestId('flow-json');
+    expect(block.compareDocumentPosition(json) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('FlowPanel — Explain / Review mutex (BA decision #5)', () => {
+  const flow = buildFlow();
+  const readyStatus: AppStatus = { kind: 'ready', flow };
+
+  it('renders only the explanation when both lifecycles are non-idle (defensive guard)', () => {
+    renderPanel(
+      readyStatus,
+      { kind: 'ready', explanation: '- some explanation here' },
+      {},
+      {
+        kind: 'ready',
+        result: { issues: [], summary: 'No issues found.' },
+      },
+    );
+    expect(screen.getByTestId('explanation')).toBeInTheDocument();
+    expect(screen.queryByTestId('review')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('issue-list-empty')).not.toBeInTheDocument();
+  });
+
+  it('renders only the review when explainStatus is idle but reviewStatus is ready', () => {
+    renderPanel(
+      readyStatus,
+      idleExplain,
+      {},
+      {
+        kind: 'ready',
+        result: { issues: [], summary: 'No issues found.' },
+      },
+    );
+    expect(screen.queryByTestId('explanation')).not.toBeInTheDocument();
+    expect(screen.getByTestId('review')).toBeInTheDocument();
   });
 });
