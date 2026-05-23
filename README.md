@@ -39,21 +39,19 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
 ## Design Principles
 
-Eight rules guide how the product is shaped and how the code is written.
-
 ### Product & architecture
 
-1. **Design-time AI only.** Generation, explanation, and semantic review use a language model. Runtime simulation is deterministic — the model never authors live chat replies.
-2. **Hybrid review.** Structural defects (unreachable nodes, missing fallback, broken connections) are caught by code. Semantic gaps (missing branches, ambiguous wording) are caught by the model. Findings are merged and surfaced with severity.
-3. **Single source of truth.** One generated flow drives the node graph, the structured view, and the simulation engine. There is no separate UI state to keep in sync.
-4. **Shared schema.** The Flow type is defined once and reused across backend, frontend, and LLM output validation. The same Zod schema validates API payloads and model output.
+1. **Design-time AI only.** Generate / explain / review use the LLM. Simulation is deterministic.
+2. **Hybrid review.** Code catches structural defects; the LLM catches semantic ones. Findings merge with severity.
+3. **Single source of truth.** One flow drives the graph, the structured view, and the executor.
+4. **Shared schema.** One Zod type for backend, frontend, and LLM output.
 
 ### Engineering
 
-5. **SOLID code.** Modules follow single-responsibility, depend on interfaces over implementations, and stay open for extension. The `LLMProvider` boundary is the canonical example — agents depend on the interface, not on vendor SDKs.
-6. **Unified configuration.** All tunables — LLM provider, model, base URL, ports, retry limits, feature flags — live in one config layer driven by environment variables. No magic constants scattered across modules; one place to read, one place to change.
-7. **Minimise external service calls.** Every LLM call costs latency and money. Generated flows are stored once and reused: Explain and Review read the stored flow rather than regenerating it. Retry only on validation failure, with a hard cap.
-8. **Defence-in-depth security.** Validate inputs at the API boundary (Zod), constrain LLM outputs with schema + retry, keep secrets server-only, never log full prompts or provider responses, and fail closed on auth or quota errors. See [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) for the full checklist.
+5. **SOLID.** Modules depend on interfaces (`LLMProvider`), not vendor SDKs.
+6. **Unified configuration.** All tunables in one env-driven layer; no scattered constants.
+7. **Minimise external calls.** Stored flows are reused across endpoints; retry is bounded.
+8. **Defence in depth.** Validate inputs, constrain LLM outputs, keep secrets server-only, log metadata not content. See [.cursor/rules/security.mdc](./.cursor/rules/security.mdc).
 
 ---
 
@@ -75,12 +73,8 @@ Eight rules guide how the product is shaped and how the code is written.
 | Layer | Choice | Reason |
 |-------|--------|--------|
 | Language | TypeScript | Shared types across backend, frontend, and validation |
-| Monorepo | pnpm workspaces (`shared` / `server` / `web`) | Single repo, one schema |
-| Backend | Fastify | Lightweight JSON API, fast scaffold |
-| Frontend | React + Vite | Standard pairing with React Flow |
-| Graph rendering | `@xyflow/react` (React Flow) | Read-only node graph from flow JSON |
-| Schema validation | Zod | Validate LLM output and API payloads from one source of types |
-| LLM (default) | DeepSeek `deepseek-chat` | OpenAI-compatible API; available without extra signup |
-| LLM (design) | `LLMProvider` interface | Provider-agnostic; OpenAI / Anthropic adapters can be added |
-| Testing | Vitest (server-side: executor + validator) | Quality signal without overbuilding |
-| Dev orchestration | `concurrently` | Single `pnpm dev` runs server + web |
+| Monorepo | pnpm workspaces (`shared` / `server` / `web`) | One repo, one schema |
+| Backend | Fastify | Lightweight JSON API |
+| Frontend | React + Vite + `@xyflow/react` | Standard SPA with read-only flow graph |
+| Validation | Zod | One source of types for API and LLM output |
+| LLM | DeepSeek `deepseek-chat` via `LLMProvider` interface | Provider-agnostic; DeepSeek is the default adapter |
