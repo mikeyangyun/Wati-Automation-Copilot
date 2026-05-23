@@ -26,6 +26,21 @@ export type SimulationStatus =
   | { kind: 'active'; envelope: SessionEnvelope; pending?: 'step' | 'reset' }
   | { kind: 'error'; error: AppErrorSummary };
 
+/**
+ * Explain (Phase 3) lifecycle. Sibling to SimulationStatus — independent of
+ * both AppStatus and SimulationStatus, since explanation freshness is
+ * user-driven (each click is a new request, no auto-fetch).
+ *
+ * `ready.refreshing` flags a click-while-ready so the UI can keep the
+ * previous explanation visible behind the new loading hint instead of
+ * flashing to a blank state.
+ */
+export type ExplainStatus =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; explanation: string; refreshing?: boolean }
+  | { kind: 'error'; error: AppErrorSummary };
+
 export interface AppErrorSummary {
   code: string;
   message: string;
