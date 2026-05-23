@@ -146,15 +146,20 @@ export class ApiClient {
   private async requestJson(path: string, init: RequestInit): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
 
+    // Only declare a JSON body when we actually send one. Setting
+    // `Content-Type: application/json` on a body-less POST trips Fastify's
+    // default parser, which (correctly) rejects empty JSON payloads.
+    const hasBody = init.body !== undefined && init.body !== null;
+    const headers: Record<string, string> = {
+      ...((init.headers as Record<string, string> | undefined) ?? {}),
+    };
+    if (hasBody && headers['Content-Type'] === undefined) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     let response: Response;
     try {
-      response = await this.fetchFn(url, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(init.headers ?? {}),
-        },
-      });
+      response = await this.fetchFn(url, { ...init, headers });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new ApiError('NETWORK_ERROR', `Network request failed: ${reason}`, 0);

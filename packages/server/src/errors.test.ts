@@ -91,4 +91,27 @@ describe('errorHandler', () => {
     const body = res.json() as { error: { code: string } };
     expect(body.error.code).toBe('INTERNAL');
   });
+
+  it('returns 400 INVALID_INPUT (not 500) when Fastify rejects an empty JSON body', async () => {
+    // Regression: a client that sends `Content-Type: application/json` with no
+    // body trips Fastify's `FST_ERR_CTP_EMPTY_JSON_BODY`. Without explicit
+    // handling, that arrives at our handler as an opaque error and gets
+    // collapsed to 500, masking the actual client mistake.
+    const app = Fastify({ loggerInstance: silentLogger });
+    app.setErrorHandler(errorHandler);
+    app.post('/echo', async () => ({ ok: true }));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/echo',
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('INVALID_INPUT');
+    // The internal `FST_ERR_*` code must not leak into the client envelope.
+    expect(body.error.code.startsWith('FST_')).toBe(false);
+  });
 });

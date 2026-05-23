@@ -532,3 +532,57 @@ describe('ApiClient.reviewFlow', () => {
     });
   });
 });
+
+describe('ApiClient — Content-Type header', () => {
+  // Regression: Fastify 5.x rejects an empty body when `Content-Type:
+  // application/json` is set. Body-less POSTs (start / reset / explain /
+  // review) must omit the header so the server accepts the request.
+  function captureHeaders(): {
+    fetchFn: typeof globalThis.fetch;
+    calls: Array<{ url: string; init: RequestInit | undefined }>;
+  } {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const envelope = buildEnvelope();
+    const fetchFn: typeof globalThis.fetch = async (input, init) => {
+      calls.push({ url: input as string, init });
+      return new Response(JSON.stringify(envelope), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    return { fetchFn, calls };
+  }
+
+  it('omits Content-Type when POSTing without a body (startSession)', async () => {
+    const { fetchFn, calls } = captureHeaders();
+    const client = new ApiClient({ fetch: fetchFn });
+
+    await client.startSession('flow_1');
+
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.init?.body).toBeUndefined();
+    expect((calls[0]!.init!.headers as Record<string, string>)['Content-Type']).toBeUndefined();
+  });
+
+  it('omits Content-Type for resetSession (body-less POST)', async () => {
+    const { fetchFn, calls } = captureHeaders();
+    const client = new ApiClient({ fetch: fetchFn });
+
+    await client.resetSession('sess_1');
+
+    expect(calls[0]!.init?.body).toBeUndefined();
+    expect((calls[0]!.init!.headers as Record<string, string>)['Content-Type']).toBeUndefined();
+  });
+
+  it('still sets Content-Type when there is a body (stepSession)', async () => {
+    const { fetchFn, calls } = captureHeaders();
+    const client = new ApiClient({ fetch: fetchFn });
+
+    await client.stepSession('sess_1', 'hello');
+
+    expect(calls[0]!.init?.body).toBe(JSON.stringify({ message: 'hello' }));
+    expect((calls[0]!.init!.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/json',
+    );
+  });
+});

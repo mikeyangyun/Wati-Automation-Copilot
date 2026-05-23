@@ -63,6 +63,18 @@ export function errorHandler(
     return;
   }
 
+  // Fastify built-in client errors (e.g. malformed JSON body, payload too large)
+  // arrive here with a 4xx `statusCode` and an `FST_ERR_*` code. We expose them
+  // as `INVALID_INPUT` rather than letting them collapse into a generic 500;
+  // the internal `FST_*` code is intentionally not leaked to the client.
+  const statusCode = (err as FastifyError).statusCode;
+  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
+    void reply.status(statusCode).send({
+      error: { code: 'INVALID_INPUT', message: err.message },
+    });
+    return;
+  }
+
   req.log.error({ err }, 'unhandled error');
   void reply.status(500).send({
     error: { code: 'INTERNAL', message: 'Internal server error' },
