@@ -5,6 +5,7 @@ import {
   explainFlow,
   generateFlow,
   resetSession,
+  reviewFlow,
   startSession,
   stepSession,
   type SessionEnvelope,
@@ -12,16 +13,24 @@ import {
 import { ChatPanel } from './panels/ChatPanel.js';
 import { FlowPanel } from './panels/FlowPanel.js';
 import { PromptPanel } from './panels/PromptPanel.js';
-import type { AppErrorSummary, AppStatus, ExplainStatus, SimulationStatus } from './state.js';
+import type {
+  AppErrorSummary,
+  AppStatus,
+  ExplainStatus,
+  ReviewStatus,
+  SimulationStatus,
+} from './state.js';
 
 export function App() {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<AppStatus>({ kind: 'idle' });
   const [simStatus, setSimStatus] = useState<SimulationStatus>({ kind: 'inactive' });
   const [explainStatus, setExplainStatus] = useState<ExplainStatus>({ kind: 'idle' });
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>({ kind: 'idle' });
   const generateAbortRef = useRef<AbortController | null>(null);
   const simAbortRef = useRef<AbortController | null>(null);
   const explainAbortRef = useRef<AbortController | null>(null);
+  const reviewAbortRef = useRef<AbortController | null>(null);
   // Mirror of simStatus, so step/reset handlers can read the current sessionId
   // without depending on it (which would re-create the callbacks on every keystroke).
   const simStatusRef = useRef<SimulationStatus>(simStatus);
@@ -41,6 +50,7 @@ export function App() {
       generateAbortRef.current?.abort();
       simAbortRef.current?.abort();
       explainAbortRef.current?.abort();
+      reviewAbortRef.current?.abort();
     },
     [],
   );
@@ -70,11 +80,13 @@ export function App() {
     generateAbortRef.current?.abort();
     simAbortRef.current?.abort();
     explainAbortRef.current?.abort();
+    reviewAbortRef.current?.abort();
     const controller = new AbortController();
     generateAbortRef.current = controller;
     setStatus({ kind: 'generating' });
     setSimStatus({ kind: 'inactive' });
     setExplainStatus({ kind: 'idle' });
+    setReviewStatus({ kind: 'idle' });
     try {
       const flow = await generateFlow(prompt, controller.signal);
       if (controller.signal.aborted) return;
@@ -130,6 +142,11 @@ export function App() {
     // Keep the previous explanation visible if there is one (refresh UX); otherwise
     // show the loading placeholder. Either way, abort any prior in-flight request.
     explainAbortRef.current?.abort();
+    // BA decision #5 — Explain and Review are mutually exclusive in the UI.
+    // Opening Explain closes any active Review.
+    reviewAbortRef.current?.abort();
+    setReviewStatus({ kind: 'idle' });
+
     const prev = explainStatusRef.current;
     if (prev.kind === 'ready') {
       setExplainStatus({ kind: 'ready', explanation: prev.explanation, refreshing: true });
@@ -154,6 +171,36 @@ export function App() {
     setExplainStatus({ kind: 'idle' });
   }, []);
 
+  const handleReview = useCallback(async () => {
+    if (status.kind !== 'ready') return;
+    const fid = status.flow.id;
+
+    // BA decision #5 — mutex with Explain.
+    explainAbortRef.current?.abort();
+    setExplainStatus({ kind: 'idle' });
+
+    // BA decision #6 — "blank then loading": always clear the previous result
+    // when the user re-triggers a review. No refreshing-overlay UX here.
+    reviewAbortRef.current?.abort();
+    setReviewStatus({ kind: 'loading' });
+
+    const controller = new AbortController();
+    reviewAbortRef.current = controller;
+    try {
+      const result = await reviewFlow(fid, controller.signal);
+      if (controller.signal.aborted) return;
+      setReviewStatus({ kind: 'ready', result });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setReviewStatus({ kind: 'error', error: summariseError(err) });
+    }
+  }, [status]);
+
+  const handleCloseReview = useCallback(() => {
+    reviewAbortRef.current?.abort();
+    setReviewStatus({ kind: 'idle' });
+  }, []);
+
   return (
     <div className="app">
       <header className="header">
@@ -169,8 +216,11 @@ export function App() {
         <FlowPanel
           status={status}
           explainStatus={explainStatus}
+          reviewStatus={reviewStatus}
           onExplain={handleExplain}
           onCloseExplain={handleCloseExplain}
+          onReview={handleReview}
+          onCloseReview={handleCloseReview}
         />
         <ChatPanel status={simStatus} onStep={handleStep} onReset={handleReset} />
       </main>

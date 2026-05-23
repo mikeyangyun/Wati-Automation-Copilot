@@ -23,6 +23,7 @@ vi.mock('./api.js', () => ({
   stepSession: vi.fn(),
   resetSession: vi.fn(),
   explainFlow: vi.fn(),
+  reviewFlow: vi.fn(),
 }));
 
 import { App } from './App.js';
@@ -31,8 +32,10 @@ import {
   explainFlow,
   generateFlow,
   resetSession,
+  reviewFlow,
   startSession,
   stepSession,
+  type ReviewResult,
   type SessionEnvelope,
 } from './api.js';
 
@@ -41,6 +44,7 @@ const mockStart = startSession as unknown as ReturnType<typeof vi.fn>;
 const mockStep = stepSession as unknown as ReturnType<typeof vi.fn>;
 const mockReset = resetSession as unknown as ReturnType<typeof vi.fn>;
 const mockExplain = explainFlow as unknown as ReturnType<typeof vi.fn>;
+const mockReview = reviewFlow as unknown as ReturnType<typeof vi.fn>;
 
 const buildFlow = (overrides: Partial<Flow> = {}): Flow => ({
   id: 'flow_demo',
@@ -79,6 +83,7 @@ beforeEach(() => {
   mockStep.mockReset();
   mockReset.mockReset();
   mockExplain.mockReset();
+  mockReview.mockReset();
 });
 
 afterEach(() => {
@@ -415,5 +420,181 @@ describe('App — Explain wiring', () => {
     await user.click(screen.getByRole('button', { name: /generate/i }));
 
     await waitFor(() => expect(screen.queryByTestId('explanation')).not.toBeInTheDocument());
+  });
+});
+
+const buildReviewResult = (overrides: Partial<ReviewResult> = {}): ReviewResult => ({
+  issues: [
+    {
+      severity: 'warning',
+      code: 'MISSING_FALLBACK',
+      message: '"Ask buyer/seller" has no fallback edge.',
+      nodeIds: ['n_ask'],
+    },
+  ],
+  summary: '1 issue found (1 warning).',
+  ...overrides,
+});
+
+describe('App — Review wiring (Phase 4)', () => {
+  async function generate(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+  }
+
+  it('clicking Review calls reviewFlow with the ready flow id and renders the IssueList', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_review_demo' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+
+    await screen.findByTestId('issue-list');
+    expect(screen.getByText('1 issue found (1 warning).')).toBeInTheDocument();
+    expect(mockReview).toHaveBeenCalledWith('flow_review_demo', expect.any(AbortSignal));
+  });
+
+  it('renders the SEMANTIC_REVIEW_UNAVAILABLE info issue end-to-end when the server degrades gracefully', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(
+      buildReviewResult({
+        issues: [
+          {
+            severity: 'info',
+            code: 'SEMANTIC_REVIEW_UNAVAILABLE',
+            message: 'Semantic review is temporarily unavailable.',
+            nodeIds: [],
+          },
+        ],
+        summary: '1 issue found (1 info).',
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+
+    await screen.findByTestId('issue-info');
+    expect(screen.getByText('SEMANTIC_REVIEW_UNAVAILABLE')).toBeInTheDocument();
+  });
+
+  it('renders the review error envelope when the API rejects with a transport-level error', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockRejectedValueOnce(new ApiError('FLOW_NOT_FOUND', 'gone', 404));
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+
+    const alert = await screen.findByTestId('review-error');
+    expect(alert).toHaveTextContent('FLOW_NOT_FOUND');
+  });
+
+  it('clicking Review while an Explanation is open closes the Explanation (mutex)', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockExplain.mockResolvedValueOnce('- a previous explanation');
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+    await screen.findByTestId('explanation');
+
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+    expect(screen.queryByTestId('explanation')).not.toBeInTheDocument();
+  });
+
+  it('clicking Explain while a Review is open closes the Review (mutex)', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    mockExplain.mockResolvedValueOnce('- explanation');
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+
+    await user.click(screen.getByRole('button', { name: 'Explain' }));
+    await screen.findByTestId('explanation');
+    expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('review')).not.toBeInTheDocument();
+  });
+
+  it('clicking × closes the review block and returns to idle', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+
+    await user.click(screen.getByRole('button', { name: /close review/i }));
+    expect(screen.queryByTestId('review')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review' })).toBeEnabled();
+  });
+
+  it('clicking Review again clears the previous result (blank-then-loading UX, BA decision #6)', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+
+    // Second click — server hangs; we expect the prior list to disappear and
+    // the loading placeholder to show.
+    mockReview.mockImplementationOnce(
+      () =>
+        new Promise<ReviewResult>(() => {
+          /* never resolves */
+        }),
+    );
+    await user.click(screen.getByRole('button', { name: /refresh review/i }));
+    await screen.findByTestId('review-loading');
+    expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument();
+  });
+
+  it('resets reviewStatus to idle when a new generate is triggered', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_one' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    mockReview.mockResolvedValueOnce(buildReviewResult());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('flow-json');
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('issue-list');
+
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_two' }));
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    await user.clear(screen.getByLabelText(/prompt input/i));
+    await user.type(screen.getByLabelText(/prompt input/i), 'second');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    await waitFor(() => expect(screen.queryByTestId('issue-list')).not.toBeInTheDocument());
   });
 });

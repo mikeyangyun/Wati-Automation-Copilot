@@ -423,7 +423,11 @@ function completeFlowFixture(overrides: Partial<Flow> = {}): Flow {
 
 function missingFallbackFixture(): Flow {
   const flow = completeFlowFixture({ id: 'flow_missing_fb' });
+  // Strip both the fallback edge and the node it pointed at — keeping just
+  // the node would surface an UNREACHABLE_NODE warning we are not asserting on
+  // here.
   flow.edges = flow.edges.filter((e) => e.id !== 'e_default');
+  flow.nodes = flow.nodes.filter((n) => n.id !== 'n_default');
   return flow;
 }
 
