@@ -6,7 +6,15 @@
 
 ## Status
 
-**Scaffold in place.** Monorepo, dev tooling, and a runnable Fastify + Vite skeleton are wired up. Agents, executor, and validator implementations are pending.
+**Feature complete.** All product surfaces are implemented end-to-end and covered by 418 automated tests:
+
+- **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`.
+- **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset.
+- **Explain** — markdown-rendered summary of how a flow behaves.
+- **Hybrid review** — structural rules + semantic LLM analysis, merged by severity, with graceful degradation when the LLM is unavailable.
+- **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle, type-coded nodes, condition labels, and issue → node highlight on click.
+
+Remaining: demo recording and final write-up (see [BUILD_PLAN.md](./BUILD_PLAN.md) Phase 6 – 7).
 
 For the product specification, see [PRODUCT.md](./PRODUCT.md).
 
@@ -24,28 +32,40 @@ For the product specification, see [PRODUCT.md](./PRODUCT.md).
 ```bash
 nvm use                                                # reads .nvmrc
 pnpm install
-cp packages/server/.env.example packages/server/.env   # fill LLM_API_KEY when agents land
+cp packages/server/.env.example packages/server/.env   # see below for LLM config
 pnpm dev                                               # server on :3000, web on :5173
 ```
 
-**Verify the skeleton**
+**LLM configuration**
+
+The default `.env.example` ships with `LLM_PROVIDER=deepseek`. Pick one of:
+
+- **Use the mock provider** (no API key, deterministic, recommended for first run): set `LLM_PROVIDER=mock` in `packages/server/.env`. Generate / Explain / Review will return canned responses.
+- **Use a real DeepSeek key**: set `LLM_API_KEY=sk-...` in `packages/server/.env`.
+
+**Verify**
 
 ```bash
 curl http://localhost:3000/health
 # -> { "status": "ok", "uptime": ..., "timestamp": "..." }
 ```
 
-Then open <http://localhost:5173> — the three-panel placeholder UI should load.
+Open <http://localhost:5173>. The three-panel UI loads:
+
+- **Left** — prompt input with starter examples.
+- **Center** — generated flow (graph by default; toggle to JSON), with **Explain** / **Review** actions.
+- **Right** — mock chat that auto-starts a simulation as soon as a flow is ready.
 
 **Other scripts**
 
-| Command          | What it does                   |
-| ---------------- | ------------------------------ |
-| `pnpm test`      | Run Vitest across all packages |
-| `pnpm typecheck` | Run `tsc` across all packages  |
-| `pnpm lint`      | Run ESLint across the repo     |
-| `pnpm format`    | Run Prettier in write mode     |
-| `pnpm build`     | Build all packages             |
+| Command                                 | What it does                                |
+| --------------------------------------- | ------------------------------------------- |
+| `pnpm test`                             | Run Vitest across all packages              |
+| `pnpm typecheck`                        | Run `tsc` across all packages               |
+| `pnpm lint`                             | Run ESLint across the repo                  |
+| `pnpm format`                           | Run Prettier in write mode                  |
+| `pnpm build`                            | Build all packages                          |
+| `pnpm --filter server simulation-smoke` | Run the in-process simulation smoke harness |
 
 ---
 
@@ -123,19 +143,20 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 ```
 Wati-Automation-Copilot/
 ├── packages/
-│   ├── shared/                # Zod schema + shared TS types (Flow types pending)
-│   ├── server/                # Fastify API, /health, config, Pino (agents/executor pending)
-│   └── web/                   # React + Vite three-panel UI (graph + chat pending)
+│   ├── shared/                # Zod schema + shared TS types (Flow, Issue, SimulationEvent, …)
+│   ├── server/                # Fastify API, agents, executor, structural validator, store
+│   └── web/                   # React + Vite three-panel UI (read-only graph, chat, issue list)
 ├── docs/
 │   ├── architecture.md        # Runtime sequence diagrams
 │   └── data-model.md          # Entity fields + REST reference
 ├── .cursor/rules/             # Security and engineering rules
+├── BUILD_PLAN.md              # Phase-by-phase execution log with QA artifacts
 ├── PRODUCT.md                 # Product specification
 ├── README.md
 └── LICENSE
 ```
 
-Three workspace packages plus shared docs. Scaffold is runnable; business logic (agents, executor, validator, flow graph) lands incrementally on top.
+Three workspace packages share one Zod schema. The `graph/` subtree in `web` and `validator/` + `executor/` subtrees in `server` are LLM-free by design — enforced via ESLint `no-restricted-imports`.
 
 ---
 
@@ -196,6 +217,17 @@ See [docs/architecture.md](./docs/architecture.md) for the full sequence diagram
 Two resources: **Flow** (the generated automation, with nodes and edges) and **Simulation** (a session walking through a flow). Review findings come back as typed issues with severity.
 
 See [docs/data-model.md](./docs/data-model.md) for entity fields, REST endpoints, request/response examples, status codes, and the shared error shape.
+
+---
+
+## Known Limitations
+
+Scope cuts that were deliberate, not oversights:
+
+- **In-memory storage with no eviction.** Generated flows and simulation sessions live in process RAM; they are lost on restart and accumulate over the process lifetime. Persistence and TTL are V2 work.
+- **No rate limiting or authentication.** All API routes are public on the listening port. Acceptable for the local-only MVP; add `@fastify/rate-limit` and an auth layer before exposing the server.
+- **No per-session step lock.** Two parallel `POST /step` calls on the same `sessionId` race; the loser's message is overwritten. Real deployments would need a per-session async mutex.
+- **`@xyflow/react` graph is read-only.** Editing happens by regenerating from a refined prompt, not by direct manipulation. Permanent product choice, not a limitation of the renderer.
 
 ---
 

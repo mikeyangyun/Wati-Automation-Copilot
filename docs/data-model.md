@@ -47,7 +47,9 @@ The structured representation of a chatbot automation generated from a natural-l
 | `POST` | `/api/flows/generate`    | `{ prompt }` | `{ flow }`            | 200 · 400 · 422 · 502 |
 | `GET`  | `/api/flows/:id`         | —            | `{ flow }`            | 200 · 404             |
 | `POST` | `/api/flows/:id/explain` | —            | `{ explanation }`     | 200 · 404 · 502       |
-| `POST` | `/api/flows/:id/review`  | —            | `{ issues, summary }` | 200 · 404 · 502       |
+| `POST` | `/api/flows/:id/review`  | —            | `{ issues, summary }` | 200 · 404             |
+
+`/review` does **not** return 502 on LLM failure. The structural validator runs in parallel with the semantic agent; if the LLM throws, the response still returns 200 with an `info`-level `SEMANTIC_REVIEW_UNAVAILABLE` issue appended. This is the "graceful degradation" decision recorded as Phase 4 BA decision #2 — review must remain useful even when the model is down. See [`packages/server/src/routes/flows.ts`](../packages/server/src/routes/flows.ts) for the merging logic.
 
 ### Example — `POST /api/flows/generate`
 
@@ -174,30 +176,44 @@ Content-Type: application/json
 
 Returned by `/review`.
 
-| Field      | Type     | Description                         |
-| ---------- | -------- | ----------------------------------- |
-| `severity` | enum     | `error`, `warning`, or `info`       |
-| `code`     | string   | Stable code (see planned set below) |
-| `message`  | string   | Human-readable explanation          |
-| `nodeIds`  | string[] | Affected nodes, when applicable     |
+| Field      | Type     | Description                    |
+| ---------- | -------- | ------------------------------ |
+| `severity` | enum     | `error`, `warning`, or `info`  |
+| `code`     | string   | Stable code (see set below)    |
+| `message`  | string   | Human-readable explanation     |
+| `nodeIds`  | string[] | Affected nodes (`[]` when N/A) |
 
-### Planned codes (MVP)
+The `ReviewResult` shape is `{ issues: Issue[], summary: string }` where `summary` is a server-rendered headline string such as `"3 issues found (1 error, 1 warning, 1 info)."`.
 
-**Structural (validator):**
+### Issue codes (implemented)
 
-- `MISSING_ENTRY` — no entry node or `entryNodeId` does not exist
-- `UNREACHABLE_NODE` — node not reachable from the entry
-- `MISSING_FALLBACK` — `ask_question` / `condition` without an unmatched fallback edge
-- `DUPLICATE_CONDITION` — multiple edges share the same `condition` label from the same source
-- `DANGLING_EDGE` — edge references a non-existent node
+**Structural (validator) — deterministic, LLM-free:**
 
-**Semantic (`ReviewAgent`):**
+| Code                  | Severity  | When                                                                              |
+| --------------------- | --------- | --------------------------------------------------------------------------------- |
+| `MISSING_ENTRY`       | `error`   | `entryNodeId` does not match any node in the flow                                 |
+| `DANGLING_EDGE`       | `error`   | Edge references a non-existent `from` or `to` node                                |
+| `UNREACHABLE_NODE`    | `warning` | Node not reachable via BFS from the entry node                                    |
+| `MISSING_FALLBACK`    | `warning` | `ask_question` / `condition` has no default (unconditioned) outgoing edge         |
+| `DUPLICATE_CONDITION` | `warning` | Same source node has multiple outgoing edges with the same normalized `condition` |
 
-- `MISSING_BRANCH` — a business path described in the prompt is not present
-- `AMBIGUOUS_ROUTING` — branches the model considers under-specified
-- `UNCLEAR_QUESTION` — `ask_question` text is ambiguous or compound
+**Semantic (`ReviewAgent`) — LLM-driven:**
 
-More codes may be added during implementation. The list above is the MVP target.
+| Code                | Severity            | When                                                                  |
+| ------------------- | ------------------- | --------------------------------------------------------------------- |
+| `MISSING_BRANCH`    | `warning` / `error` | A business path implied by the prompt has no corresponding edge       |
+| `AMBIGUOUS_ROUTING` | `warning`           | Branches are vague or could double-match the same user input          |
+| `UNCLEAR_QUESTION`  | `info`              | `ask_question` text is compound, leading, or otherwise hard to answer |
+
+**Meta:**
+
+| Code                          | Severity | When                                                                               |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `SEMANTIC_REVIEW_UNAVAILABLE` | `info`   | The LLM-driven review failed (timeout, schema, or transport); structural still ran |
+
+### Merge / dedup rules
+
+When the structural and semantic streams overlap on the same `nodeId`, **structural wins** (`structural_wins_on_nodeId`, recorded as Phase 4 BA decision #3). The merged list is then sorted: severity `error` → `warning` → `info`, then structural → semantic within a severity, then by `nodeIds[0]` for stability.
 
 ---
 
@@ -214,10 +230,11 @@ All errors share one shape:
 }
 ```
 
-| HTTP | Code                                  | When                                                                           |
-| ---- | ------------------------------------- | ------------------------------------------------------------------------------ |
-| 400  | `INVALID_INPUT`                       | Request body fails Zod validation                                              |
-| 404  | `FLOW_NOT_FOUND`, `SESSION_NOT_FOUND` | Unknown id                                                                     |
-| 422  | `LLM_OUTPUT_INVALID`                  | Model output failed schema after retry                                         |
-| 502  | `LLM_UNAVAILABLE`                     | Provider error or timeout                                                      |
-| 500  | `INTERNAL`                            | Unexpected server error (fallback shape, logged with full stack on the server) |
+| HTTP | Code                                  | When                                                                                                |
+| ---- | ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 400  | `INVALID_INPUT`                       | Request body or params fail Zod validation                                                          |
+| 404  | `FLOW_NOT_FOUND`, `SESSION_NOT_FOUND` | Unknown id on a typed route                                                                         |
+| 404  | `NOT_FOUND`                           | Catch-all from Fastify's `setNotFoundHandler` (route does not exist)                                |
+| 422  | `LLM_OUTPUT_INVALID`                  | Model output failed schema after retry (generate only)                                              |
+| 502  | `LLM_UNAVAILABLE`                     | Provider error or timeout (generate + explain). `/review` degrades gracefully — see Endpoints table |
+| 500  | `INTERNAL`                            | Unexpected server error (fallback shape, logged with full stack on the server)                      |

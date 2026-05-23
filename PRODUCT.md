@@ -2,7 +2,7 @@
 
 > **Document type:** Product prototype & scope definition  
 > **Version:** 1.0  
-> **Status:** Specification locked; implementation pending
+> **Status:** Specification locked; implementation complete (demo pending — see [BUILD_PLAN.md](./BUILD_PLAN.md) Phase 6)
 
 ---
 
@@ -20,23 +20,23 @@ Users describe automation intent in **natural language**. The system produces a 
 
 ### 2.1 In Scope
 
-| Dimension | Definition |
-|-----------|------------|
-| **Primary input** | Natural language description of automation intent |
-| **Core artifact** | Structured flow (machine-readable definition + read-only node graph) |
-| **AI capabilities** | Generation, explanation, and review |
-| **Validation** | Multi-turn mock conversation with fallback handling and session reset |
+| Dimension           | Definition                                                                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primary input**   | Natural language description of automation intent                                                                                                                                |
+| **Core artifact**   | Structured flow (machine-readable definition + read-only node graph)                                                                                                             |
+| **AI capabilities** | Generation, explanation, and review                                                                                                                                              |
+| **Validation**      | Multi-turn mock conversation with fallback handling and session reset                                                                                                            |
 | **Node vocabulary** | Aligned with Wati Chatbot Builder: `trigger`, `send_message`, `ask_question`, `condition`, `assign_to_team`, `api_call`, `wait` (see [docs/data-model.md](./docs/data-model.md)) |
 
 ### 2.2 Out of Scope (MVP)
 
-| Excluded | Rationale |
-|----------|-----------|
-| Drag-and-drop visual editor | Copilot generates flows; manual node editing is not part of MVP |
-| Publish / deploy to live channels | MVP covers design and pre-launch validation only |
-| Wati API / WhatsApp integration | Requires production infrastructure beyond MVP |
-| Persistent accounts and saved workflows | MVP focuses on a single-session design experience |
-| AI-generated live chat at runtime | Simulation follows the designed flow predictably |
+| Excluded                                | Rationale                                                       |
+| --------------------------------------- | --------------------------------------------------------------- |
+| Drag-and-drop visual editor             | Copilot generates flows; manual node editing is not part of MVP |
+| Publish / deploy to live channels       | MVP covers design and pre-launch validation only                |
+| Wati API / WhatsApp integration         | Requires production infrastructure beyond MVP                   |
+| Persistent accounts and saved workflows | MVP focuses on a single-session design experience               |
+| AI-generated live chat at runtime       | Simulation follows the designed flow predictably                |
 
 ### 2.3 Relationship to the Wati Platform
 
@@ -65,9 +65,9 @@ The Copilot sits **upstream** of publish: it helps users design and verify flows
 
 ### 3.1 Primary Personas
 
-| Persona | Needs |
-|---------|-------|
-| **Operations / CS lead** | Build routing and FAQ bots without deep Builder expertise |
+| Persona                  | Needs                                                                   |
+| ------------------------ | ----------------------------------------------------------------------- |
+| **Operations / CS lead** | Build routing and FAQ bots without deep Builder expertise               |
 | **Small business owner** | Describe intent in plain language instead of configuring nodes manually |
 
 ### 3.2 Reference Scenarios
@@ -132,17 +132,17 @@ flowchart TD
 
 ### 4.2 Step-by-Step Flow
 
-| Step | User action | System response | UI panel |
-|------|-------------|-----------------|----------|
-| 1 | Enter or select a starter prompt | — | Prompt |
-| 2 | Click **Generate** | Produces structured flow; renders node graph | Prompt → Flow |
-| 3 | Review graph and flow definition | Read-only artifact available for inspection | Flow |
-| 4 | Click **Explain** | Plain-language summary of trigger, branches, and outcomes | Flow |
-| 5 | Click **Review** | Issue list with severity (errors, warnings, info) | Flow |
-| 6 | Click **Start simulation** | Bot sends first message(s); session begins at entry node | Mock Chat |
-| 7 | Type replies (e.g. `buyer`, `seller`) | Bot follows branches; shows actions and session state | Mock Chat |
-| 8 | Click **Reset session** | Clears transcript; restarts from entry node | Mock Chat |
-| 9 | If issues found, edit prompt and repeat from Step 2 | New flow replaces previous artifact | Prompt |
+| Step | User action                                           | System response                                                                                                | UI panel      |
+| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------- |
+| 1    | Enter or select a starter prompt                      | —                                                                                                              | Prompt        |
+| 2    | Click **Generate**                                    | Produces structured flow; renders node graph (auto-laid-out)                                                   | Prompt → Flow |
+| 2b   | _(automatic)_                                         | Mock simulation session is created against the new flow; the bot sends its opening message                     | Mock Chat     |
+| 3    | Review the graph or toggle to JSON                    | Read-only artifact available for inspection                                                                    | Flow          |
+| 4    | Click **Explain**                                     | Plain-language markdown summary of trigger, branches, and outcomes                                             | Flow          |
+| 5    | Click **Review**                                      | Issue list with severity (errors, warnings, info); click an issue to highlight the affected nodes in the graph | Flow          |
+| 6    | Type replies (e.g. `buyer`, `seller`)                 | Bot follows branches; shows actions and session state                                                          | Mock Chat     |
+| 7    | Click **Reset**                                       | Clears transcript; restarts from entry node, same session id                                                   | Mock Chat     |
+| 8    | If issues found, edit prompt and click Generate again | New flow + new simulation replaces previous artifact                                                           | Prompt        |
 
 ### 4.3 Simulation Sub-Journey
 
@@ -154,7 +154,7 @@ sequenceDiagram
     participant C as Copilot UI
     participant S as Simulation engine
 
-    U->>C: Start simulation
+    Note over C,S: Session auto-starts as soon as a flow becomes ready —<br/>no explicit "Start" click is required.
     C->>S: Create session from flow entry
     S-->>C: Bot: opening question
     C-->>U: Display bot message
@@ -174,10 +174,10 @@ sequenceDiagram
 
 ### 4.4 Recommended Workflow
 
-1. **Generate** — turn intent into a structured flow  
-2. **Explain / Review** — confirm logic and catch gaps before simulating  
-3. **Simulate** — test happy paths and edge cases (e.g. buyer, seller, unclear reply)  
-4. **Reset / Regenerate** — reset to re-test; regenerate if the flow itself needs changes  
+1. **Generate** — turn intent into a structured flow
+2. **Explain / Review** — confirm logic and catch gaps before simulating
+3. **Simulate** — test happy paths and edge cases (e.g. buyer, seller, unclear reply)
+4. **Reset / Regenerate** — reset to re-test; regenerate if the flow itself needs changes
 
 ---
 
@@ -185,33 +185,33 @@ sequenceDiagram
 
 ### 5.1 MVP (P0)
 
-| Feature | Description | Acceptance criteria |
-|---------|-------------|---------------------|
-| **Natural language input** | Text area with example prompts | User can type or select a starter prompt |
-| **Flow generation** | Turn natural language into a Wati-style node flow | Valid flow with trigger, nodes, and branches |
-| **Flow definition view** | Collapsible structured view of the generated flow | Same artifact drives graph and simulation |
-| **Flow graph** | Read-only visual map of nodes and connections | Node types and paths are clearly identifiable |
-| **AI explanation** | Plain-language flow summary | Non-technical users can understand bot behavior |
-| **AI review** | Structural + semantic analysis | Detects missing branches, missing fallback, etc. |
-| **Multi-turn simulation** | Mock chat through the flow | Supports ask → reply → branch → action sequences |
-| **Fallback handling** | Unmatched input behavior | Uses fallback edge when defined; otherwise retry / clarify |
-| **Session reset** | Reset simulation | Clears transcript and restarts from entry node |
+| Feature                    | Description                                       | Acceptance criteria                                        |
+| -------------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| **Natural language input** | Text area with example prompts                    | User can type or select a starter prompt                   |
+| **Flow generation**        | Turn natural language into a Wati-style node flow | Valid flow with trigger, nodes, and branches               |
+| **Flow definition view**   | Collapsible structured view of the generated flow | Same artifact drives graph and simulation                  |
+| **Flow graph**             | Read-only visual map of nodes and connections     | Node types and paths are clearly identifiable              |
+| **AI explanation**         | Plain-language flow summary                       | Non-technical users can understand bot behavior            |
+| **AI review**              | Structural + semantic analysis                    | Detects missing branches, missing fallback, etc.           |
+| **Multi-turn simulation**  | Mock chat through the flow                        | Supports ask → reply → branch → action sequences           |
+| **Fallback handling**      | Unmatched input behavior                          | Uses fallback edge when defined; otherwise retry / clarify |
+| **Session reset**          | Reset simulation                                  | Clears transcript and restarts from entry node             |
 
 ### 5.2 Post-MVP (P1)
 
-| Feature | Description |
-|---------|-------------|
-| UI polish | Closer visual alignment with Wati product patterns |
-| Additional starter prompts | Broader scenario coverage |
-| Curated example flows | Quick-start templates for common automations |
+| Feature                    | Description                                        |
+| -------------------------- | -------------------------------------------------- |
+| UI polish                  | Closer visual alignment with Wati product patterns |
+| Additional starter prompts | Broader scenario coverage                          |
+| Curated example flows      | Quick-start templates for common automations       |
 
 ### 5.3 Explicitly Excluded
 
-- Drag-and-drop node editing  
-- Publish / deploy  
-- Live channel integration  
-- User accounts and login  
-- Long-term flow library / versioning  
+- Drag-and-drop node editing
+- Publish / deploy
+- Live channel integration
+- User accounts and login
+- Long-term flow library / versioning
 
 ---
 
@@ -222,17 +222,20 @@ Three-panel layout: **Prompt** (left) · **Flow** (center) · **Mock Chat** (rig
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Wati Automation Builder Copilot                             │
-├──────────────┬─────────────────────────┬─────────────────────┤
-│ PROMPT       │ FLOW                    │ MOCK CHAT           │
-│ [textarea]   │ [Node graph]            │ conversation log    │
-│ [Generate]   │ [Flow definition]       │ [Send] [Reset]      │
-│ examples ▾   │ [Explain] [Review]      │                     │
-└──────────────┴─────────────────────────┴─────────────────────┘
+├──────────────┬──────────────────────────────┬────────────────┤
+│ PROMPT       │ FLOW                         │ MOCK CHAT      │
+│ [textarea]   │ [Explain][Review][View JSON] │ transcript     │
+│ [Generate]   │ ┌──────── node graph ──────┐ │ [Send] [Reset] │
+│ examples ▾   │ │  trigger → ask → branch  │ │                │
+│              │ └──────────────────────────┘ │                │
+└──────────────┴──────────────────────────────┴────────────────┘
 ```
 
-- One generated flow drives the graph, definition view, and simulation.  
-- Users change the flow by editing the prompt and regenerating — not by dragging nodes.  
-- **Generate** in Prompt; **Explain** / **Review** in Flow; **Send** / **Reset** in Mock Chat.
+- One generated flow drives the graph, JSON view, review, and simulation.
+- The Flow panel defaults to **Graph**; toggle to JSON for the raw structure.
+- Users change the flow by editing the prompt and regenerating — not by dragging nodes.
+- **Generate** in Prompt; **Explain** / **Review** / **View JSON** in Flow; **Send** / **Reset** in Mock Chat.
+- Mock Chat auto-starts as soon as a flow is ready — no explicit "Start" button.
 
 ---
 
@@ -258,10 +261,10 @@ flowchart TD
 
 **Node types used:** `trigger`, `ask_question`, `condition`, `assign_to_team`, `send_message`
 
-| Test | User input | Expected result |
-|------|------------|-----------------|
-| Buyer path | `buyer` | Routed to Sales |
-| Seller path | `seller` | Help article sent |
+| Test          | User input        | Expected result                    |
+| ------------- | ----------------- | ---------------------------------- |
+| Buyer path    | `buyer`           | Routed to Sales                    |
+| Seller path   | `seller`          | Help article sent                  |
 | Unclear reply | `hello` → `buyer` | Clarification, then route to Sales |
 
 Review must pass on a complete version of this flow; must fail if seller path or fallback is missing.
@@ -274,11 +277,11 @@ Review must pass on a complete version of this flow; must fail if seller path or
 
 **Review** returns findings with severity (`error`, `warning`, `info`):
 
-- **Structural:** unreachable steps, missing fallback, broken connections  
-- **Semantic:** missing business paths, ambiguous routing  
+- **Structural:** unreachable steps, missing fallback, broken connections
+- **Semantic:** missing business paths, ambiguous routing
 
-| | Review | Simulation |
-|--|--------|------------|
+|                   | Review                         | Simulation                             |
+| ----------------- | ------------------------------ | -------------------------------------- |
 | Question answered | "What's wrong with this flow?" | "What happens if the user says buyer?" |
 
 **Generation, explanation, and review** use AI. **Simulation** follows the flow as built.
@@ -287,10 +290,10 @@ Review must pass on a complete version of this flow; must fail if seller path or
 
 ## 9. MVP Decisions
 
-- Natural language in; no canvas editor  
-- Output: flow definition + read-only node graph  
-- Multi-turn simulation with fallback and session reset  
-- No publish or live channel integration  
-- Scenarios B (FAQ) and C (incomplete flow) used to test generalization and review  
+- Natural language in; no canvas editor
+- Output: flow definition + read-only node graph
+- Multi-turn simulation with fallback and session reset
+- No publish or live channel integration
+- Scenarios B (FAQ) and C (incomplete flow) used to test generalization and review
 
 ---
