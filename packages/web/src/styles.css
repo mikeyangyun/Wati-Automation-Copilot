@@ -178,13 +178,18 @@ body {
   font-size: 14px;
 }
 
-/* ---------- Flow header (Explain) ---------- */
+/* ---------- Flow header (Explain + Review) ---------- */
 
 .flow-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.flow-header-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .flow-header h2 {
@@ -297,6 +302,214 @@ body {
 .flow-explanation-error p {
   margin: 0;
   font-size: 14px;
+}
+
+/* ---------- Review (IssueList) ---------- */
+
+.flow-review-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.flow-review-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flow-review {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 12px 36px 12px 14px;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.flow-review-loading {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: #f5f5f5;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.flow-review-error {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 12px 36px 12px 14px;
+  border: 1px solid #d33;
+  background: #fdecec;
+  color: #5a0000;
+  border-radius: 6px;
+}
+
+.flow-review-error strong {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.flow-review-error p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.flow-review-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.flow-review-close:hover {
+  color: var(--text);
+}
+
+.issue-list .issue-summary,
+.issue-list-empty .issue-summary {
+  margin: 0 0 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.issue-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.issue {
+  padding: 8px 10px;
+  border-radius: 5px;
+  border-left: 3px solid var(--border);
+  background: #fff;
+}
+
+.issue-error {
+  border-left-color: #d33;
+  background: #fdecec;
+}
+
+.issue-warning {
+  border-left-color: #d18900;
+  background: #fff7e0;
+}
+
+.issue-info {
+  border-left-color: #6b7280;
+  background: #f3f4f6;
+}
+
+.issue-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.issue-severity {
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+.issue-severity-error {
+  color: #a51919;
+}
+
+.issue-severity-warning {
+  color: #8a5400;
+}
+
+.issue-severity-info {
+  color: #4b5563;
+}
+
+.issue-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+}
+
+.issue-source {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.issue-source-rule {
+  background: #d6e6ff;
+  color: #1a3a7a;
+}
+
+.issue-source-llm {
+  background: #f0d6ff;
+  color: #5a2a7a;
+}
+
+.issue-source-meta {
+  background: #f0f0f0;
+  color: var(--muted);
+}
+
+.issue-message {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.issue-nodes {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.issue-nodes-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.issue-node-chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  color: var(--text);
 }
 
 /* ---------- Chat panel ---------- */

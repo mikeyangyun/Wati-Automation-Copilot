@@ -1,6 +1,6 @@
 import type { Flow } from 'shared';
 
-import type { SessionEnvelope } from './api.js';
+import type { ReviewResult, SessionEnvelope } from './api.js';
 
 /**
  * Flow-generation lifecycle. Independent of simulation lifecycle —
@@ -39,6 +39,18 @@ export type ExplainStatus =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'ready'; explanation: string; refreshing?: boolean }
+  | { kind: 'error'; error: AppErrorSummary };
+
+/**
+ * Review (Phase 4) lifecycle. Mutually exclusive with `ExplainStatus` in
+ * the UI (BA decision #5): the App layer keeps both pieces of state but the
+ * FlowPanel only renders one block at a time. Per BA decision #6 the
+ * refresh UX is "blank then loading" — there is no `refreshing` flag here.
+ */
+export type ReviewStatus =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; result: ReviewResult }
   | { kind: 'error'; error: AppErrorSummary };
 
 export interface AppErrorSummary {
