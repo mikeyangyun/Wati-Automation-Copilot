@@ -113,6 +113,14 @@ export class ApiClient {
     return parseSessionEnvelope(json);
   }
 
+  async explainFlow(flowId: string, signal?: AbortSignal): Promise<string> {
+    const json = await this.requestJson(`/api/flows/${encodeURIComponent(flowId)}/explain`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    return parseExplanationEnvelope(json);
+  }
+
   private async requestJson(path: string, init: RequestInit): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
 
@@ -166,6 +174,9 @@ export const stepSession = (
 export const resetSession = (sessionId: string, signal?: AbortSignal): Promise<SessionEnvelope> =>
   apiClient.resetSession(sessionId, signal);
 
+export const explainFlow = (flowId: string, signal?: AbortSignal): Promise<string> =>
+  apiClient.explainFlow(flowId, signal);
+
 function safeJsonParse(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -209,4 +220,19 @@ function parseSessionEnvelope(json: unknown): SessionEnvelope {
     );
   }
   return parsed.data;
+}
+
+function parseExplanationEnvelope(json: unknown): string {
+  if (typeof json !== 'object' || json === null) {
+    throw new ApiError('INVALID_RESPONSE', 'Response was not a JSON object', 0);
+  }
+  const explanation = (json as { explanation?: unknown }).explanation;
+  if (typeof explanation !== 'string' || explanation.length === 0) {
+    throw new ApiError(
+      'INVALID_RESPONSE',
+      'Server response was missing a non-empty `explanation` string',
+      0,
+    );
+  }
+  return explanation;
 }

@@ -348,3 +348,87 @@ describe('ApiClient.resetSession', () => {
     });
   });
 });
+
+describe('ApiClient.explainFlow', () => {
+  it('POSTs (empty body) to /api/flows/:id/explain and returns the explanation string', async () => {
+    const explanation =
+      '- When a contact messages, the bot asks buyer or seller.\n- Buyers go to Sales.';
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new ApiClient({
+      fetch: async (input, init) => {
+        calls.push({ url: input as string, init });
+        return new Response(JSON.stringify({ explanation }), { status: 200 });
+      },
+    });
+
+    const result = await client.explainFlow('flow_1');
+
+    expect(result).toBe(explanation);
+    expect(calls[0]!.url).toBe('/api/flows/flow_1/explain');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.init?.body).toBeUndefined();
+  });
+
+  it('encodes special characters in flowId', async () => {
+    const calls: string[] = [];
+    const client = new ApiClient({
+      fetch: async (input) => {
+        calls.push(input as string);
+        return new Response(JSON.stringify({ explanation: '- ok' }), { status: 200 });
+      },
+    });
+    await client.explainFlow('flow/with space');
+    expect(calls[0]).toBe('/api/flows/flow%2Fwith%20space/explain');
+  });
+
+  it('forwards an AbortSignal to fetch', async () => {
+    let observed: AbortSignal | undefined;
+    const client = new ApiClient({
+      fetch: async (_input, init) => {
+        observed = init?.signal ?? undefined;
+        return new Response(JSON.stringify({ explanation: '- ok ok' }), { status: 200 });
+      },
+    });
+    const controller = new AbortController();
+    await client.explainFlow('flow_1', controller.signal);
+    expect(observed).toBe(controller.signal);
+  });
+
+  it('throws ApiError(FLOW_NOT_FOUND, 404) when the flow is missing', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(404, { error: { code: 'FLOW_NOT_FOUND', message: 'gone' } }),
+    });
+    await expect(client.explainFlow('flow_x')).rejects.toMatchObject({
+      code: 'FLOW_NOT_FOUND',
+      status: 404,
+    });
+  });
+
+  it('throws ApiError(LLM_UNAVAILABLE, 502) when the LLM provider fails', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(502, { error: { code: 'LLM_UNAVAILABLE', message: 'provider down' } }),
+    });
+    await expect(client.explainFlow('flow_1')).rejects.toMatchObject({
+      code: 'LLM_UNAVAILABLE',
+      status: 502,
+    });
+  });
+
+  it('throws ApiError(INVALID_RESPONSE) when 200 body is missing the explanation field', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(200, { somethingElse: 'oops' }),
+    });
+    await expect(client.explainFlow('flow_1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+
+  it('throws ApiError(INVALID_RESPONSE) when explanation is an empty string', async () => {
+    const client = new ApiClient({
+      fetch: jsonFetch(200, { explanation: '' }),
+    });
+    await expect(client.explainFlow('flow_1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+});
