@@ -14,30 +14,23 @@ For the product specification, see [PRODUCT.md](./PRODUCT.md).
 
 ## Overview
 
-Wati customers configure chatbot automations in the Wati Chatbot Builder by wiring nodes — questions, conditions, branches, team handoffs. Operators usually know *what* the bot should do, but not how to express it as a node graph.
+**Wati Automation Builder Copilot** lets operators describe a chatbot automation in plain English and turns it into a Wati-compatible flow. The system explains the resulting logic, reviews it for defects and gaps, and runs a deterministic mock conversation so the design can be walked through before any flow is published.
 
-**Wati Automation Builder Copilot** lets operators describe the automation in plain English. The system:
+The Copilot sits **upstream of publish** — design and validate first, then configure the approved flow in the Wati Builder.
 
-- Generates a Wati-compatible flow from a natural-language brief.
-- Explains the resulting logic in plain language.
-- Reviews the flow for structural defects and semantic gaps.
-- Runs a deterministic mock conversation so the operator can walk the flow before going live.
-
-The Copilot sits **upstream of publish** — design and validate first, then configure the approved flow in the Wati Builder. Nothing in this product touches a live WhatsApp channel.
-
-**Primary users:** customer operations and CS leads who configure routing and FAQ bots, plus small business owners setting up first-line automations.
+**Primary users:** customer operations and CS leads, plus small business owners configuring routing and FAQ bots.
 
 ---
 
-## Out of Scope (MVP)
+## Scope
 
-The product focuses on AI-assisted design and pre-launch validation. The following are explicitly excluded from the MVP:
+| In scope (MVP) | Out of scope (MVP) |
+|----------------|--------------------|
+| Natural-language input with starter examples | Drag-and-drop visual editor |
+| Generation of a Wati-style flow from a brief | Publish or deploy to live channels |
+| Read-only node graph + structured flow view | Wati API / WhatsApp integration |
+| AI: generate, explain, review | Accounts, login, saved workflows |
+| Multi-turn mock simulation with fallback and reset | Persistent storage and flow library |
+| Hybrid review (structural + AI semantic) | AI-authored runtime chat replies |
 
-- Drag-and-drop visual editor
-- Publish or deploy to live channels
-- Wati API / WhatsApp integration
-- Accounts, login, and saved workflows
-- Persistent storage and long-term flow library
-- AI-authored runtime chat replies
-
-See [PRODUCT.md §2](./PRODUCT.md) for the full in-scope and out-of-scope breakdown.
+See [PRODUCT.md §2](./PRODUCT.md) for full details and rationale.
