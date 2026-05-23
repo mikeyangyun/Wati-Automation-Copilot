@@ -6,7 +6,8 @@ export type ErrorCode =
   | 'FLOW_NOT_FOUND'
   | 'SESSION_NOT_FOUND'
   | 'LLM_OUTPUT_INVALID'
-  | 'LLM_UNAVAILABLE';
+  | 'LLM_UNAVAILABLE'
+  | 'NOT_FOUND';
 
 export class AppError extends Error {
   public readonly code: ErrorCode;
@@ -18,6 +19,28 @@ export class AppError extends Error {
     this.code = code;
     this.statusCode = statusCode;
   }
+}
+
+/**
+ * Cap on the joined message length so a noisy schema can't blow up the
+ * response or leak excessive shape detail to clients.
+ */
+const ZOD_MESSAGE_MAX = 300;
+
+/**
+ * Flatten a ZodError into a short human-readable string suitable for a
+ * client error body. Example: `prompt: Required; age: Number must be ...`.
+ *
+ * Each entry takes the form `<dotted.path>: <message>` (or just `<message>`
+ * when the issue has no path, e.g. cross-field refinements at the root).
+ */
+export function flattenZodError(err: ZodError): string {
+  const parts = err.errors.map((issue) => {
+    const path = issue.path.join('.');
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+  const joined = parts.join('; ');
+  return joined.length > ZOD_MESSAGE_MAX ? `${joined.slice(0, ZOD_MESSAGE_MAX - 1)}…` : joined;
 }
 
 export function errorHandler(
@@ -34,7 +57,7 @@ export function errorHandler(
 
   if (err instanceof ZodError) {
     void reply.status(400).send({
-      error: { code: 'INVALID_INPUT', message: err.message },
+      error: { code: 'INVALID_INPUT', message: flattenZodError(err) },
     });
     return;
   }

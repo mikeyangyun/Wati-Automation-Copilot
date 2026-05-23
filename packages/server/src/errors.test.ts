@@ -46,7 +46,7 @@ describe('errorHandler', () => {
     });
   });
 
-  it('maps a ZodError thrown in a handler to 400 INVALID_INPUT', async () => {
+  it('maps a ZodError thrown in a handler to 400 INVALID_INPUT with a flattened message', async () => {
     const app = buildErrorFixture();
     const res = await app.inject({
       method: 'POST',
@@ -56,7 +56,32 @@ describe('errorHandler', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe('INVALID_INPUT');
-    expect(body.error.message.length).toBeGreaterThan(0);
+    // Should NOT be the raw Zod JSON array stringification.
+    expect(body.error.message.startsWith('[')).toBe(false);
+    // Should be a short human-readable string that references the field path.
+    expect(body.error.message).toContain('name');
+    expect(body.error.message.length).toBeLessThan(200);
+  });
+
+  it('flattens multi-issue ZodError into a semicolon-joined message', async () => {
+    const app = Fastify({ loggerInstance: silentLogger });
+    app.setErrorHandler(errorHandler);
+    const Schema = z.object({
+      name: z.string().min(1),
+      age: z.number().int().nonnegative(),
+    });
+    app.post('/throw/multi', async (req) => Schema.parse(req.body));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/throw/multi',
+      payload: { name: '', age: -1 },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { error: { message: string } };
+    expect(body.error.message).toContain('name');
+    expect(body.error.message).toContain('age');
+    expect(body.error.message).toMatch(/;/);
   });
 
   it('falls back to 500 INTERNAL for unrecognised errors', async () => {
