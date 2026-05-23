@@ -66,3 +66,114 @@ body {
   color: var(--muted);
   font-size: 14px;
 }
+
+.prompt-textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+  background: var(--panel-bg);
+  color: var(--text);
+}
+
+.prompt-textarea:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.prompt-actions {
+  margin-top: 10px;
+}
+
+.prompt-submit {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: 1px solid #1f6feb;
+  background: #1f6feb;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.prompt-submit:disabled {
+  background: #9bb7ea;
+  border-color: #9bb7ea;
+  cursor: not-allowed;
+}
+
+.prompt-starters {
+  margin-top: 20px;
+}
+
+.starters-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prompt-starters ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.starter-button {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.starter-button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.starter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flow-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #1a1a1a;
+  color: #e6edf3;
+  padding: 14px;
+  border-radius: 6px;
+  overflow: auto;
+  margin: 0;
+}
+
+.flow-error {
+  border: 1px solid #d33;
+  background: #fdecec;
+  color: #5a0000;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.flow-error strong {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.flow-error p {
+  margin: 0;
+  font-size: 14px;
+}
