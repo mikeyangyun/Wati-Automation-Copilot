@@ -17,6 +17,7 @@ import { pino } from 'pino';
 import type { Flow } from 'shared';
 
 import type { FlowGenerator } from '../src/agents/flowAgent.js';
+import type { FlowReviewer } from '../src/agents/reviewAgent.js';
 import { buildApp } from '../src/app.js';
 import { FlowExecutor } from '../src/executor/flowExecutor.js';
 import { InMemoryStore } from '../src/store/inMemoryStore.js';
@@ -64,6 +65,12 @@ const stubAgent: FlowGenerator = {
   },
 };
 
+const stubReviewer: FlowReviewer = {
+  explain: async () => {
+    throw new Error('QA smoke does not exercise explain; this stub is unreachable');
+  },
+};
+
 interface CaseResult {
   name: string;
   ok: boolean;
@@ -97,6 +104,7 @@ async function main(): Promise<number> {
   const app = await buildApp({
     loggerInstance: logger,
     agent: stubAgent,
+    reviewer: stubReviewer,
     executor,
     store,
   });

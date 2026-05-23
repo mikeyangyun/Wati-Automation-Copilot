@@ -3,6 +3,7 @@ import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import type { FlowGenerator } from '../agents/flowAgent.js';
+import type { FlowReviewer } from '../agents/reviewAgent.js';
 import { buildApp } from '../app.js';
 import { FlowExecutor } from '../executor/flowExecutor.js';
 import { InMemoryStore } from '../store/inMemoryStore.js';
@@ -13,6 +14,12 @@ const fixedNow = () => '2026-05-23T12:00:00.000Z';
 const noopAgent: FlowGenerator = {
   generate: async () => {
     throw new Error('simulation route tests do not invoke the agent');
+  },
+};
+
+const noopReviewer: FlowReviewer = {
+  explain: async () => {
+    throw new Error('simulation route tests do not invoke the reviewer');
   },
 };
 
@@ -59,6 +66,7 @@ async function setup() {
   const app = await buildApp({
     loggerInstance: silentLogger,
     agent: noopAgent,
+    reviewer: noopReviewer,
     executor,
     store,
   });
