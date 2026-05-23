@@ -106,7 +106,7 @@ describe('App — flow generation', () => {
     await user.type(textarea, 'Greet new contacts.');
     await user.click(screen.getByRole('button', { name: /generate/i }));
 
-    await waitFor(() => expect(screen.getByTestId('flow-json')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('flow-graph')).toBeInTheDocument());
     expect(mockGenerate).toHaveBeenCalledWith('Greet new contacts.', expect.any(AbortSignal));
   });
 
@@ -129,7 +129,7 @@ describe('App — flow generation', () => {
     expect(screen.getByRole('button', { name: /generating/i })).toBeDisabled();
 
     resolveFn(buildFlow());
-    await waitFor(() => expect(screen.getByTestId('flow-json')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('flow-graph')).toBeInTheDocument());
   });
 
   it('renders the server error code and message when the API returns an ApiError', async () => {
@@ -328,7 +328,7 @@ describe('App — Explain wiring', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
 
     const block = await screen.findByTestId('explanation');
@@ -344,7 +344,7 @@ describe('App — Explain wiring', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
 
     const alert = await screen.findByTestId('explanation-error');
@@ -370,7 +370,7 @@ describe('App — Explain wiring', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
     await screen.findByTestId('explanation');
 
@@ -391,7 +391,7 @@ describe('App — Explain wiring', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
     await screen.findByTestId('explanation');
 
@@ -408,7 +408,7 @@ describe('App — Explain wiring', () => {
     const user = userEvent.setup();
     render(<App />);
     await generate(user);
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
     await screen.findByTestId('explanation');
 
@@ -450,7 +450,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
 
     await screen.findByTestId('issue-list');
@@ -478,7 +478,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
 
     await screen.findByTestId('issue-info');
@@ -493,7 +493,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
 
     const alert = await screen.findByTestId('review-error');
@@ -509,7 +509,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Explain' }));
     await screen.findByTestId('explanation');
 
@@ -527,7 +527,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
     await screen.findByTestId('issue-list');
 
@@ -545,7 +545,7 @@ describe('App — Review wiring (Phase 4)', () => {
     render(<App />);
     await generate(user);
 
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
     await screen.findByTestId('issue-list');
 
@@ -561,7 +561,7 @@ describe('App — Review wiring (Phase 4)', () => {
     const user = userEvent.setup();
     render(<App />);
     await generate(user);
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
     await screen.findByTestId('issue-list');
 
@@ -585,7 +585,7 @@ describe('App — Review wiring (Phase 4)', () => {
     const user = userEvent.setup();
     render(<App />);
     await generate(user);
-    await screen.findByTestId('flow-json');
+    await screen.findByTestId('flow-graph');
     await user.click(screen.getByRole('button', { name: 'Review' }));
     await screen.findByTestId('issue-list');
 
