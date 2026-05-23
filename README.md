@@ -222,104 +222,65 @@ The executor is deterministic. The LLM is never invoked during a simulation step
 
 ---
 
-## Data Model
+## API Reference
 
-All types live in `packages/shared` and are validated with Zod at the API boundary and after every LLM call.
+Base URL: `/api`. JSON in, JSON out. Two resources — **Flow** and **Simulation**. Errors share one shape ([Errors](#errors)). Examples use the buyer / seller reference flow from [PRODUCT.md](./PRODUCT.md).
 
 ### Flow
 
-```typescript
-type NodeType =
-  | "trigger"
-  | "send_message"
-  | "ask_question"
-  | "condition"
-  | "assign_to_team"
-  | "api_call"
-  | "wait";
+A Flow is the structured representation of a chatbot automation generated from a natural-language prompt. Generated once and reused by every subsequent endpoint.
 
-interface Flow {
-  id: string;
-  name: string;
-  prompt: string;            // original natural-language input
-  trigger: { type: "new_message" | "keyword"; value?: string };
-  entryNodeId: string;
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  createdAt: string;         // ISO 8601
-}
+**Fields**
 
-interface FlowNode {
-  id: string;
-  type: NodeType;
-  label: string;
-  config: Record<string, unknown>;     // type-specific: text, team, rules, ...
-  position?: { x: number; y: number }; // for graph layout
-}
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier (`flow_...`) |
+| `name` | string | Human-readable name derived from the prompt |
+| `prompt` | string | Original natural-language input |
+| `trigger` | object | `{ type, value? }` where `type` is `new_message` or `keyword` |
+| `entryNodeId` | string | Starting node ID |
+| `nodes` | Node[] | Flow steps; see Node below |
+| `edges` | Edge[] | Connections; see Edge below |
+| `createdAt` | string | ISO 8601 timestamp |
 
-interface FlowEdge {
-  id: string;
-  from: string;
-  to: string;
-  condition?: string;        // e.g. "buyer", "seller", "default", "fallback"
-}
-```
+**Node**
 
-### Simulation session
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier |
+| `type` | enum | `trigger`, `send_message`, `ask_question`, `condition`, `assign_to_team`, `api_call`, `wait` |
+| `label` | string | Display label |
+| `config` | object | Type-specific settings (message text, team name, condition rules) |
+| `position` | object | Optional graph coordinates `{ x, y }` |
 
-```typescript
-interface ChatMessage {
-  role: "bot" | "user";
-  content: string;
-  nodeId?: string;
-  timestamp: string;
-}
+**Edge**
 
-interface SimulationSession {
-  id: string;
-  flowId: string;
-  currentNodeId: string;
-  status: "running" | "waiting_for_input" | "completed" | "handed_off";
-  transcript: ChatMessage[];
-  context: {
-    retryCount: number;
-    lastQuestionNodeId?: string;
-  };
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier |
+| `from` | string | Source node ID |
+| `to` | string | Target node ID |
+| `condition` | string | Optional branch label (`buyer`, `seller`, `fallback`, ...) |
 
-### Review output
+**Endpoints**
 
-```typescript
-interface Issue {
-  severity: "error" | "warning" | "info";
-  code: string;              // e.g. MISSING_FALLBACK, UNREACHABLE_NODE
-  message: string;
-  nodeIds?: string[];
-}
-```
+| Method | URL | Body | Response | Status |
+|--------|-----|------|----------|--------|
+| `POST` | `/api/flows/generate` | `{ prompt }` | `{ flow }` | 200 · 400 · 422 · 502 |
+| `GET` | `/api/flows/:id` | — | `{ flow }` | 200 · 404 |
+| `POST` | `/api/flows/:id/explain` | — | `{ explanation }` | 200 · 404 · 502 |
+| `POST` | `/api/flows/:id/review` | — | `{ issues, summary }` | 200 · 404 · 502 |
 
----
+**Issue** (returned by `/review`)
 
-## API Design
+| Field | Type | Description |
+|-------|------|-------------|
+| `severity` | enum | `error`, `warning`, or `info` |
+| `code` | string | Stable code, e.g. `MISSING_FALLBACK`, `UNREACHABLE_NODE` |
+| `message` | string | Human-readable explanation |
+| `nodeIds` | string[] | Affected nodes, when applicable |
 
-Base URL: `/api`. JSON in, JSON out. Errors share one shape (see [Errors](#errors)).
-
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| `POST` | `/api/flows/generate` | `{ prompt: string }` | `{ flow: Flow }` |
-| `GET` | `/api/flows/:id` | — | `{ flow: Flow }` |
-| `POST` | `/api/flows/:id/explain` | — | `{ explanation: string }` |
-| `POST` | `/api/flows/:id/review` | — | `{ issues: Issue[], summary: string }` |
-| `POST` | `/api/flows/:id/simulate/start` | — | `{ session: SimulationSession, botMessages: string[] }` |
-| `POST` | `/api/simulate/:sessionId/step` | `{ message: string }` | `{ session, botMessages, events }` |
-| `POST` | `/api/simulate/:sessionId/reset` | — | `{ session, botMessages }` |
-
-### Examples
-
-All examples use the buyer / seller reference flow ([PRODUCT.md §7](./PRODUCT.md)).
-
-**Generate**
+**Example — `POST /api/flows/generate`**
 
 ```http
 POST /api/flows/generate
@@ -356,61 +317,40 @@ Content-Type: application/json
 }
 ```
 
-**Explain**
+### Simulation
 
-```http
-POST /api/flows/flow_01h.../explain
-```
+A Simulation is a session that walks through a Flow step by step in a mock chat. Created from a Flow, advanced by user messages, and can be reset to start over.
 
-```json
-{
-  "explanation": "When a new contact sends a message, the bot asks whether they are a buyer or a seller. Buyers are routed to the Sales team. Sellers receive a link to the help article."
-}
-```
+**Session fields**
 
-**Review**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Session identifier (`sess_...`) |
+| `flowId` | string | Source flow |
+| `currentNodeId` | string | Currently active node |
+| `status` | enum | `running`, `waiting_for_input`, `completed`, `handed_off` |
+| `transcript` | Message[] | Ordered bot and user messages |
+| `context.retryCount` | number | Times the current question has been re-asked |
+| `context.lastQuestionNodeId` | string | Most recent question node |
 
-```http
-POST /api/flows/flow_01h.../review
-```
+**Message**
 
-```json
-{
-  "issues": [
-    {
-      "severity": "warning",
-      "code": "MISSING_FALLBACK",
-      "message": "Condition n2 has no fallback for replies that match neither 'buyer' nor 'seller'.",
-      "nodeIds": ["n2"]
-    }
-  ],
-  "summary": "1 warning: a fallback branch is missing on the routing condition."
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| `role` | enum | `bot` or `user` |
+| `content` | string | Message text |
+| `nodeId` | string | Source node (bot messages only) |
+| `timestamp` | string | ISO 8601 |
 
-**Simulate — start**
+**Endpoints**
 
-```http
-POST /api/flows/flow_01h.../simulate/start
-```
+| Method | URL | Body | Response | Status |
+|--------|-----|------|----------|--------|
+| `POST` | `/api/flows/:id/simulate/start` | — | `{ session, botMessages }` | 200 · 404 |
+| `POST` | `/api/simulate/:sessionId/step` | `{ message }` | `{ session, botMessages, events }` | 200 · 400 · 404 |
+| `POST` | `/api/simulate/:sessionId/reset` | — | `{ session, botMessages }` | 200 · 404 |
 
-```json
-{
-  "session": {
-    "id": "sess_01h...",
-    "flowId": "flow_01h...",
-    "currentNodeId": "n1",
-    "status": "waiting_for_input",
-    "transcript": [
-      { "role": "bot", "content": "Are you a buyer or a seller?", "nodeId": "n1", "timestamp": "2026-05-23T07:51:00Z" }
-    ],
-    "context": { "retryCount": 0, "lastQuestionNodeId": "n1" }
-  },
-  "botMessages": ["Are you a buyer or a seller?"]
-}
-```
-
-**Simulate — step**
+**Example — `POST /api/simulate/:sessionId/step`**
 
 ```http
 POST /api/simulate/sess_01h.../step
@@ -439,14 +379,6 @@ Content-Type: application/json
   ]
 }
 ```
-
-**Simulate — reset**
-
-```http
-POST /api/simulate/sess_01h.../reset
-```
-
-Returns a fresh session at the entry node, with the transcript cleared.
 
 ### Errors
 
