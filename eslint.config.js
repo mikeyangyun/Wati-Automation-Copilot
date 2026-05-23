@@ -66,5 +66,25 @@ export default [
       ],
     },
   },
+  // Architecture invariant: structural `validator/` must remain pure and
+  // LLM-free. Rule signals must be deterministic so the merge step can treat
+  // them as authoritative over the semantic ReviewAgent output.
+  {
+    files: ['packages/server/src/validator/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/llm/**', '**/agents/**', '../llm/*', '../agents/*'],
+              message:
+                'validator/ must remain LLM-free (see docs/architecture.md). Structural rules must be deterministic.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ];
