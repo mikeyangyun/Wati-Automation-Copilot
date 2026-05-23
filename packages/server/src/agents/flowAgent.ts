@@ -10,6 +10,14 @@ type FlowDraft = z.infer<typeof FlowDraftSchema>;
 
 const ISSUE_DETAIL_MAX = 200;
 
+/**
+ * Minimal contract a flow generator must satisfy. Routes depend on this
+ * abstraction so tests can pass deterministic stubs without an LLM.
+ */
+export interface FlowGenerator {
+  generate(prompt: string): Promise<Flow>;
+}
+
 export interface FlowAgentOptions {
   provider: LLMProvider;
   /** Number of retries when the LLM output fails JSON.parse or FlowSchema. Default 1. */
@@ -18,7 +26,7 @@ export interface FlowAgentOptions {
   now?: () => string;
 }
 
-export class FlowAgent {
+export class FlowAgent implements FlowGenerator {
   private readonly provider: LLMProvider;
   private readonly maxRetry: number;
   private readonly now: () => string;
