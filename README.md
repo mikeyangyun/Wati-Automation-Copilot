@@ -39,13 +39,13 @@ Then open <http://localhost:5173> — the three-panel placeholder UI should load
 
 **Other scripts**
 
-| Command | What it does |
-|---------|--------------|
-| `pnpm test` | Run Vitest across all packages |
-| `pnpm typecheck` | Run `tsc` across all packages |
-| `pnpm lint` | Run ESLint across the repo |
-| `pnpm format` | Run Prettier in write mode |
-| `pnpm build` | Build all packages |
+| Command          | What it does                   |
+| ---------------- | ------------------------------ |
+| `pnpm test`      | Run Vitest across all packages |
+| `pnpm typecheck` | Run `tsc` across all packages  |
+| `pnpm lint`      | Run ESLint across the repo     |
+| `pnpm format`    | Run Prettier in write mode     |
+| `pnpm build`     | Build all packages             |
 
 ---
 
@@ -61,14 +61,14 @@ The Copilot sits **upstream of publish** — design and validate first, then con
 
 ## Scope
 
-| In scope (MVP) | Out of scope (MVP) |
-|----------------|--------------------|
-| Natural-language input with starter examples | Drag-and-drop visual editor |
-| Generation of a Wati-style flow from a brief | Publish or deploy to live channels |
-| Read-only node graph + structured flow view | Wati API / WhatsApp integration |
-| AI: generate, explain, review | Accounts, login, saved workflows |
+| In scope (MVP)                                     | Out of scope (MVP)                  |
+| -------------------------------------------------- | ----------------------------------- |
+| Natural-language input with starter examples       | Drag-and-drop visual editor         |
+| Generation of a Wati-style flow from a brief       | Publish or deploy to live channels  |
+| Read-only node graph + structured flow view        | Wati API / WhatsApp integration     |
+| AI: generate, explain, review                      | Accounts, login, saved workflows    |
 | Multi-turn mock simulation with fallback and reset | Persistent storage and flow library |
-| Hybrid review (structural + AI semantic) | AI-authored runtime chat replies |
+| Hybrid review (structural + AI semantic)           | AI-authored runtime chat replies    |
 
 See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
@@ -94,27 +94,27 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
 ## Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| TypeScript monorepo (over Python or polyglot) | Shared Flow types and Zod schema across server + web + validation |
-| In-memory storage only | MVP is single-session; persistence is out of scope |
-| `LLMProvider` interface; DeepSeek as the default | Swap models without changing agent code; provider chosen via env |
-| Read-only React Flow graph (no editing canvas) | Operators describe intent in prompts; flow changes happen by regeneration |
-| Deterministic FSM executor (not LLM-driven simulation) | Reproducible mock chat; review and demo behavior are predictable |
-| Hybrid review (rules + LLM) | Structural rules cannot be hallucinated; the model adds judgment, not correctness |
+| Decision                                               | Rationale                                                                         |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| TypeScript monorepo (over Python or polyglot)          | Shared Flow types and Zod schema across server + web + validation                 |
+| In-memory storage only                                 | MVP is single-session; persistence is out of scope                                |
+| `LLMProvider` interface; DeepSeek as the default       | Swap models without changing agent code; provider chosen via env                  |
+| Read-only React Flow graph (no editing canvas)         | Operators describe intent in prompts; flow changes happen by regeneration         |
+| Deterministic FSM executor (not LLM-driven simulation) | Reproducible mock chat; review and demo behavior are predictable                  |
+| Hybrid review (rules + LLM)                            | Structural rules cannot be hallucinated; the model adds judgment, not correctness |
 
 ---
 
 ## Tech Stack
 
-| Layer | Choice | Reason |
-|-------|--------|--------|
-| Language | TypeScript | Shared types across backend, frontend, and validation |
-| Monorepo | pnpm workspaces (`shared` / `server` / `web`) | One repo, one schema |
-| Backend | Fastify | Lightweight JSON API |
-| Frontend | React + Vite + `@xyflow/react` | Standard SPA with read-only flow graph |
-| Validation | Zod | One source of types for API and LLM output |
-| LLM | DeepSeek `deepseek-chat` via `LLMProvider` interface | Provider-agnostic; DeepSeek is the default adapter |
+| Layer      | Choice                                               | Reason                                                |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------- |
+| Language   | TypeScript                                           | Shared types across backend, frontend, and validation |
+| Monorepo   | pnpm workspaces (`shared` / `server` / `web`)        | One repo, one schema                                  |
+| Backend    | Fastify                                              | Lightweight JSON API                                  |
+| Frontend   | React + Vite + `@xyflow/react`                       | Standard SPA with read-only flow graph                |
+| Validation | Zod                                                  | One source of types for API and LLM output            |
+| LLM        | DeepSeek `deepseek-chat` via `LLMProvider` interface | Provider-agnostic; DeepSeek is the default adapter    |
 
 ---
 
@@ -203,18 +203,18 @@ See [docs/data-model.md](./docs/data-model.md) for entity fields, REST endpoints
 
 All settings come from environment variables, parsed once at boot by a single typed `config` module in `packages/server`. The process fails fast on missing required values; nothing else in the code reads `process.env` directly (see Design Principle 6).
 
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `LLM_PROVIDER` | `deepseek` | no | Which `LLMProvider` adapter to load (`deepseek`, `openai`, ...) |
-| `LLM_MODEL` | `deepseek-chat` | no | Model id passed to the provider |
-| `LLM_API_KEY` | — | **yes** | Provider API key. **Secret — server-only, never exposed to the browser** |
-| `LLM_BASE_URL` | provider default | no | Override endpoint (self-hosted, proxy) |
-| `LLM_TIMEOUT_MS` | `30000` | no | Per-request timeout for the provider |
-| `LLM_MAX_RETRY` | `1` | no | Retries when LLM output fails Zod schema parsing |
-| `SIMULATION_MAX_RETRY` | `2` | no | Question re-asks in mock chat before falling back |
-| `PORT` | `3000` | no | Fastify HTTP port |
-| `LOG_LEVEL` | `info` | no | Pino log level (`trace` … `error`) |
-| `CORS_ORIGIN` | `http://localhost:5173` | no | Allowed SPA origin |
+| Variable               | Default                 | Required                                                | Description                                                              |
+| ---------------------- | ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load (`deepseek`, `openai`, ...)          |
+| `LLM_MODEL`            | `deepseek-chat`         | no                                                      | Model id passed to the provider                                          |
+| `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser** |
+| `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                   |
+| `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                     |
+| `LLM_MAX_RETRY`        | `1`                     | no                                                      | Retries when LLM output fails Zod schema parsing                         |
+| `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                        |
+| `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                        |
+| `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                       |
+| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin                                                       |
 
 A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
 
