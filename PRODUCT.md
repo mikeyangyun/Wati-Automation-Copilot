@@ -215,204 +215,82 @@ sequenceDiagram
 
 ---
 
-## 6. Interface Prototype
+## 6. Interface
 
-### 6.1 Layout — Three-Panel Workspace
+Three-panel layout: **Prompt** (left) · **Flow** (center) · **Mock Chat** (right).
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  Wati Automation Builder Copilot                    [Reset All] │
-├──────────────────┬─────────────────────────┬───────────────────┤
-│ PROMPT           │ FLOW                    │ MOCK CHAT         │
-│                  │                         │                   │
-│ [textarea]       │ [Node graph]            │ conversation log  │
-│ [Generate]       │                         │ [input] [Send]    │
-│                  │ ─────────────────────── │ [Reset Session]   │
-│ Example prompts: │ [Flow definition view]  │                   │
-│ · buyer/seller   │                         │ ───────────────── │
-│ · FAQ routing    │ [Explain] [Review]      │ Explanation panel │
-│ · incomplete     │                         │ Review issues     │
-└──────────────────┴─────────────────────────┴───────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Wati Automation Builder Copilot                             │
+├──────────────┬─────────────────────────┬─────────────────────┤
+│ PROMPT       │ FLOW                    │ MOCK CHAT           │
+│ [textarea]   │ [Node graph]            │ conversation log    │
+│ [Generate]   │ [Flow definition]       │ [Send] [Reset]      │
+│ examples ▾   │ [Explain] [Review]      │                     │
+└──────────────┴─────────────────────────┴─────────────────────┘
 ```
 
-### 6.2 Panel Responsibilities
-
-| Panel | User actions | System response |
-|-------|--------------|-----------------|
-| **Prompt** | Enter description, click Generate | Creates and stores flow |
-| **Flow graph** | Read-only inspection | Visual map rendered from the generated flow |
-| **Flow definition** | Expand / collapse | Full structured flow artifact |
-| **Explain / Review** | Trigger analysis | Explanation text or issue list (severity + message) |
-| **Mock Chat** | Send message, Reset | Bot replies, branch state, session status |
-
-### 6.3 Interaction Principles
-
-- **Single source of truth:** One generated flow drives both the visual map and simulation  
-- **Understand before simulating:** Generate → Explain/Review → Simulate  
-- **Read-only graph:** Flow changes are made by revising the prompt and regenerating  
+- One generated flow drives the graph, definition view, and simulation.  
+- Users change the flow by editing the prompt and regenerating — not by dragging nodes.  
+- **Generate** in Prompt; **Explain** / **Review** in Flow; **Send** / **Reset** in Mock Chat.
 
 ---
 
-## 7. Wati Node Model
+## 7. Reference Flow — Buyer / Seller Routing
 
-Generated flows use vocabulary familiar to Wati Chatbot Builder users:
+Canonical example for QA and walkthroughs.
 
-| Node type | Purpose | Example |
-|-----------|---------|---------|
-| `trigger` | Flow entry | New message, keyword match |
-| `ask_question` | Prompt and wait for reply | "Are you a buyer or a seller?" |
-| `condition` | Branch on reply or attribute | buyer → path A, seller → path B |
-| `send_message` | Send a message | Help article link |
-| `assign_to_team` | Route to a team | Sales, Support |
-| `api_call` | External integration | Optional; represented in flow design |
-| `wait` | Delay / timed wait | Optional |
-
-### 7.1 Reference Flow — Buyer / Seller Routing
-
-This is the canonical reference automation used across documentation, walkthroughs, and simulation examples.
-
-**Source prompt**
+**Prompt**
 
 > When a new contact messages us, ask if they are a buyer or a seller. Route buyers to the sales team and send sellers a link to our help article.
 
-**Flow diagram**
+**Flow**
 
 ```mermaid
 flowchart TD
-    T["trigger<br/>New contact message"]
-    Q["ask_question<br/>Are you a buyer or a seller?"]
-    C{"condition<br/>Match user reply"}
-    FB["send_message<br/>Please reply buyer or seller"]
-    B["assign_to_team<br/>Route to Sales"]
-    S["send_message<br/>Send help article link"]
-
-    T --> Q --> C
-    C -->|buyer| B
-    C -->|seller| S
-    C -->|fallback| FB
-    FB --> Q
+    T[New contact message] --> Q[Ask: buyer or seller?]
+    Q --> C{Match reply}
+    C -->|buyer| B[Route to Sales]
+    C -->|seller| S[Send help article]
+    C -->|unclear| F[Ask to reply buyer or seller]
+    F --> Q
 ```
 
-**Node map**
+**Node types used:** `trigger` · `ask_question` · `condition` · `assign_to_team` · `send_message`
 
-| Node | Type | Purpose |
-|------|------|---------|
-| Entry | `trigger` | Starts when a new contact sends a message |
-| Question | `ask_question` | Asks: "Are you a buyer or a seller?" |
-| Router | `condition` | Routes by reply: buyer, seller, or fallback |
-| Sales handoff | `assign_to_team` | Routes buyer to the Sales team |
-| Seller response | `send_message` | Sends help article link to seller |
-| Clarification | `send_message` | Prompts user to reply buyer or seller |
+| Test | User input | Expected result |
+|------|------------|-----------------|
+| Buyer path | `buyer` | Routed to Sales |
+| Seller path | `seller` | Help article sent |
+| Unclear reply | `hello` → `buyer` | Clarification, then route to Sales |
 
-**Paths**
-
-| From | To | When |
-|------|-----|------|
-| Entry | Question | New conversation starts |
-| Question | Router | User has been asked |
-| Router | Sales handoff | User reply indicates buyer |
-| Router | Seller response | User reply indicates seller |
-| Router | Clarification | Reply is unclear |
-| Clarification | Question | User is asked again |
-
-**Expected simulation paths**
-
-| Path | User replies | Expected bot behavior | End state |
-|------|--------------|----------------------|-----------|
-| Buyer | `"buyer"` | Acknowledges and routes to Sales | `handed_off` |
-| Seller | `"seller"` | Sends help article link | `completed` |
-| Unclear | `"hello"` → `"buyer"` | Clarification prompt, then re-ask; routes on valid reply | `handed_off` |
-
-**Review expectations**
-
-A well-formed version of this flow should pass structural review (all branches reachable, fallback present, terminal paths defined). Review should flag flows that omit the seller path, skip fallback, or leave `ask_question` without valid exits.
-
-### 7.2 Flow Structure
-
-Every generated automation is composed of:
-
-- **Flow** — name, source prompt, entry point, and full set of nodes and connections  
-- **Node** — a single step (type, label, and step-specific settings such as message text or team name)  
-- **Connection** — links two nodes and may include a condition (e.g. buyer, seller, fallback)  
+Review must pass on a complete version of this flow; must fail if seller path or fallback is missing.
 
 ---
 
-## 8. Pre-Launch Simulation
+## 8. Simulation & Review
 
-### 8.1 Definition
+**Simulation** runs the designed flow step by step in mock chat — not open-ended conversation. Pauses on questions; follows branches on match; uses fallback or clarification when reply is unclear; **Reset** restarts from entry.
 
-**Pre-launch simulation** runs the generated flow inside a mock chat environment using simulated user messages. It validates that runtime behavior matches design intent — without connecting to WhatsApp or any live channel.
+**Review** returns findings with severity (`error`, `warning`, `info`):
 
-Simulation is **not** open-ended AI chat. The system follows the designed flow step by step so outcomes are consistent and reviewable.
+- **Structural:** unreachable steps, missing fallback, broken connections  
+- **Semantic:** missing business paths, ambiguous routing  
 
-### 8.2 Runtime Behavior
+| | Review | Simulation |
+|--|--------|------------|
+| Question answered | "What's wrong with this flow?" | "What happens if the user says buyer?" |
 
-| Event | System behavior |
-|-------|-----------------|
-| Start simulation | Begin at entry node; auto-run non-interactive nodes; pause at `ask_question` |
-| User reply matches a branch | Follow the matching condition edge |
-| User reply does not match | Follow `fallback` edge if present; otherwise retry with clarification |
-| Terminal node reached | Session status → `completed` or `handed_off` |
-| Reset session | New session ID, cleared transcript, restart from entry |
-
-### 8.3 Simulation vs. Review
-
-| | Simulation | Review |
-|--|------------|--------|
-| **Method** | Execute the flow | Analyze the flow structure |
-| **Answers** | "If the user says buyer, what happens next?" | "Support branch is missing — high risk" |
-| **Validates** | Execution correctness | Design completeness |
+**Generation, explanation, and review** use AI. **Simulation** follows the flow as built.
 
 ---
 
-## 9. AI Capabilities
+## 9. MVP Decisions
 
-### 9.1 What AI Does — and What It Does Not
-
-| Capability | Role | User-facing outcome |
-|------------|------|---------------------|
-| **Flow generation** | AI | Turns a plain-language brief into a structured Wati-style flow |
-| **Flow explanation** | AI | Summarizes trigger, branches, and outcomes in plain language |
-| **Flow review** | AI + built-in checks | Surfaces missing branches, weak fallback, and UX risks |
-| **Simulation** | Rule-based execution | Walks the flow exactly as designed — not improvised AI chat |
-
-**Product principle:** AI supports **design and validation**. Simulation reflects the **approved flow**, not a separate conversational model.
-
-### 9.2 Review — Two Layers
-
-**Structural checks:**
-
-- Unreachable steps  
-- Missing fallback on branching questions  
-- Paths that never resolve  
-- Questions with no valid next step  
-- Broken or incomplete connections  
-
-**Semantic review (AI-assisted):**
-
-- Ambiguous branching logic  
-- Missing business paths (e.g. sales handled, support ignored)  
-- User experience and safety risks  
-
----
-
-## 10. End-to-End Walkthrough
-
-| Step | Scenario | Expected outcome |
-|------|----------|------------------|
-| 1 | Buyer / seller routing | Flow generated; graph and definition visible; both paths simulate correctly |
-| 2 | FAQ routing | Demonstrates generalization across a second prompt |
-| 3 | Incomplete sales/support flow | Review flags missing branch and fallback; simulation may expose dead ends |
-
----
-
-## 11. Product Decisions
-
-- [x] Natural language as primary input; no drag-and-drop editor in MVP  
-- [x] Output: structured flow definition + read-only node graph  
-- [x] AI: generation, explanation, and review  
-- [x] Simulation: multi-turn, fallback, session reset  
-- [x] Reference scenario with intentional gaps to validate review quality  
-- [x] No publish or live channel integration in MVP  
+- Natural language in; no canvas editor  
+- Output: flow definition + read-only node graph  
+- Multi-turn simulation with fallback and session reset  
+- No publish or live channel integration  
+- Scenarios B (FAQ) and C (incomplete flow) used to test generalization and review  
 
 ---
