@@ -10,12 +10,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "nanoid": "^5.0.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
   }
 }

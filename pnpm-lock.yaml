@@ -83,6 +83,9 @@ importers:
 
   packages/shared:
     dependencies:
+      nanoid:
+        specifier: ^5.0.7
+        version: 5.1.11
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -90,6 +93,9 @@ importers:
       typescript:
         specifier: ^5.6.2
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@22.19.19)
 
   packages/web:
     dependencies:
@@ -3001,6 +3007,14 @@ packages:
     engines: { node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1 }
     hasBin: true
 
+  nanoid@5.1.11:
+    resolution:
+      {
+        integrity: sha512-v+KEsUv2ps74PaSKv0gHTxTCgMXOIfBEbaqa6w6ISIGC7ZsvHN4N9oJ8d4cmf0n5oTzQz2SLmThbQWhjd/8eKg==,
+      }
+    engines: { node: ^18 || >=20 }
+    hasBin: true
+
   natural-compare@1.4.0:
     resolution:
       {
@@ -5910,6 +5924,8 @@ snapshots:
   ms@2.1.3: {}
 
   nanoid@3.3.12: {}
+
+  nanoid@5.1.11: {}
 
   natural-compare@1.4.0: {}
 
