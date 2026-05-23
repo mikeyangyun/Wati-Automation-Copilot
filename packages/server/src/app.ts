@@ -5,6 +5,7 @@ import type { Logger } from 'pino';
 import { FlowAgent, type FlowGenerator } from './agents/flowAgent.js';
 import { config } from './config.js';
 import { errorHandler } from './errors.js';
+import { FlowExecutor } from './executor/flowExecutor.js';
 import { createLLMProvider } from './llm/factory.js';
 import { logger as defaultLogger } from './logger.js';
 import { healthRoutes } from './routes/health.js';
@@ -15,6 +16,8 @@ export interface BuildAppOptions {
   loggerInstance?: Logger;
   /** Inject a FlowGenerator (typically a test stub). Defaults to a config-driven FlowAgent. */
   agent?: FlowGenerator;
+  /** Inject a FlowExecutor (typically a test stub). Defaults to one bound to the same store. */
+  executor?: FlowExecutor;
   /** Inject an InMemoryStore (typically per-test). Defaults to a fresh instance. */
   store?: InMemoryStore;
 }
@@ -36,10 +39,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   const store = opts.store ?? new InMemoryStore();
   const agent = opts.agent ?? createDefaultAgent();
+  const executor =
+    opts.executor ?? new FlowExecutor({ store, maxRetry: config.SIMULATION_MAX_RETRY });
 
   await app.register(cors, { origin: config.CORS_ORIGIN });
   await app.register(healthRoutes);
-  await app.register((scope) => registerApiRoutes(scope, { agent, store }));
+  await app.register((scope) => registerApiRoutes(scope, { agent, executor, store }));
 
   return app;
 }
