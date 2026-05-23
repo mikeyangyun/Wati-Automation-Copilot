@@ -12,7 +12,7 @@ Applies to this repo only (`packages/shared`, `packages/server`, `packages/web`)
 - **Never hardcode** `LLM_API_KEY`, tokens, or passwords in source, tests, comments, logs, fixtures, or demo scripts.
 - **Server only:** load `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` from env in `server/llm/factory.ts`. Route all LLM calls through `LLMProvider` — agents must not import vendor SDKs with inline keys.
 - **Web never holds secrets.** Do not use `VITE_*` for API keys (Vite exposes them to the browser). Backend proxies every LLM request.
-- **`.env.example`** — placeholders only (e.g. `LLM_API_KEY=your-key-here`). Real values in local `.env`; keep `.env`, `.env.local`, `*.pem` in `.gitignore`.
+- **`packages/server/.env.example`** — the single source for env placeholders (e.g. `LLM_API_KEY=your-key-here`). Real values in local `.env`; keep `.env`, `.env.local`, `*.pem` in `.gitignore`.
 
 ## Flow & test data
 
