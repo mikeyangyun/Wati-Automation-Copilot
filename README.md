@@ -81,6 +81,29 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
 ---
 
+## Project Structure
+
+```
+Wati-Automation-Copilot/
+├── packages/                  # planned — not yet scaffolded
+│   ├── shared/                # Zod schema + shared TS types
+│   ├── server/                # Fastify API, agents, executor, validator, config
+│   └── web/                   # React + Vite UI (read-only graph + mock chat)
+├── docs/
+│   ├── architecture.md        # Runtime sequence diagrams
+│   └── data-model.md          # Entity fields + REST reference
+├── .cursor/rules/             # Security and engineering rules
+├── PRODUCT.md                 # Product specification
+├── README.md
+└── LICENSE
+```
+
+Three workspace packages, one shared Flow schema. Agents and the executor live in `server`; the executor never imports anything from the LLM layer.
+
+The engineering plan ([../PLAN.md](../PLAN.md)) lives at the parent project root alongside the take-home brief.
+
+---
+
 ## Architecture
 
 ### Module overview
@@ -159,3 +182,24 @@ All settings come from environment variables, parsed once at boot by a single ty
 | `CORS_ORIGIN` | `http://localhost:5173` | no | Allowed SPA origin |
 
 A `.env.example` lives at the repo root and at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
+
+---
+
+## References
+
+**Project docs**
+
+- Product specification — [PRODUCT.md](./PRODUCT.md)
+- Engineering plan — [../PLAN.md](../PLAN.md)
+- Architecture sequence diagrams — [docs/architecture.md](./docs/architecture.md)
+- Data model and REST reference — [docs/data-model.md](./docs/data-model.md)
+- Security rules — [.cursor/rules/security.mdc](./.cursor/rules/security.mdc)
+
+**External**
+
+- Wati — Understanding nodes in Chatbot Builder — <https://docs.wati.io/docs/understanding-nodes-in-chatbot-builder>
+- Wati Help Center — <https://docs.wati.io/>
+- DeepSeek API — <https://api-docs.deepseek.com/>
+- Fastify — <https://fastify.dev/>
+- React Flow / `@xyflow/react` — <https://reactflow.dev/>
+- Zod — <https://zod.dev/>
