@@ -45,12 +45,22 @@ body {
   gap: 1px;
   background: var(--border);
   min-height: 0;
+  /* Below 1200px the three-panel layout starts to squeeze. We let the page
+   * scroll horizontally rather than collapse content; the responsive drawer
+   * pattern is intentionally out of scope (see BUILD_PLAN.md §7.1.1).        */
+  min-width: 1100px;
 }
 
 .panel {
   background: var(--panel-bg);
   padding: 20px;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel > *:not(.flow-header) {
+  min-height: 0;
 }
 
 .panel h2 {
@@ -306,7 +316,8 @@ body {
 
 /* ---------- Review (IssueList) ---------- */
 
-.flow-review-btn {
+.flow-review-btn,
+.flow-view-btn {
   font: inherit;
   font-size: 12px;
   padding: 4px 10px;
@@ -317,9 +328,17 @@ body {
   color: var(--text);
 }
 
-.flow-review-btn:disabled {
+.flow-review-btn:disabled,
+.flow-view-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.flow-view-btn {
+  /* Visually grouped with Explain / Review but slightly de-emphasised so it
+   * reads as a "secondary, view-mode" control. */
+  background: #ffffff;
+  color: var(--muted);
 }
 
 .flow-review {
@@ -702,4 +721,112 @@ body {
 .chat-error p {
   margin: 0;
   font-size: 14px;
+}
+
+/* ---------- Graph view ---------- */
+
+.flow-graph {
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fcfcfc;
+  overflow: hidden;
+}
+
+.flow-graph-empty {
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.node-card {
+  width: 180px;
+  height: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: #ffffff;
+  transition:
+    opacity 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.node-card[data-selected='true'] {
+  z-index: 2;
+}
+
+.node-card-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.node-emoji {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.node-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-chip {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.node-handle {
+  width: 6px;
+  height: 6px;
+  background: #94a3b8;
+  border: 0;
+}
+
+/* ---------- Issue selection styling ---------- */
+
+.issue-button {
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.issue-button:focus-visible {
+  outline: 2px solid #1f6feb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.issue-selected.issue-error {
+  outline: 2px solid #d33;
+  outline-offset: 1px;
+}
+
+.issue-selected.issue-warning {
+  outline: 2px solid #d18900;
+  outline-offset: 1px;
+}
+
+.issue-selected.issue-info {
+  outline: 2px solid #1f6feb;
+  outline-offset: 1px;
 }

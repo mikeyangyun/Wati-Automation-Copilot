@@ -53,9 +53,7 @@ export function computeLayout(flow: Flow): LayoutResult {
   const nodeIds = new Set(flow.nodes.map((n) => n.id));
   const safeEdges: FlowEdge[] = flow.edges.filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to));
 
-  const g = new dagre.graphlib.Graph<{ width: number; height: number }>({
-    multigraph: true,
-  });
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setGraph({ rankdir: RANK_DIR, nodesep: NODE_SEP, ranksep: RANK_SEP });
   g.setDefaultEdgeLabel(() => ({}));
 
