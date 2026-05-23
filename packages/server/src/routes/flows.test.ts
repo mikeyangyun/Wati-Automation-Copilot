@@ -172,3 +172,48 @@ describe('POST /api/flows/generate — agent error mapping', () => {
     });
   });
 });
+
+describe('GET /api/flows/:id', () => {
+  const noopAgent: FlowGenerator = {
+    generate: async () => {
+      throw new Error('GET tests do not invoke the agent');
+    },
+  };
+
+  it('returns 200 with the stored flow', async () => {
+    const flow = buildSampleFlow({ id: 'flow_known' });
+    await withApp(noopAgent, async (app, store) => {
+      store.saveFlow(flow);
+      const res = await app.inject({ method: 'GET', url: '/api/flows/flow_known' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ flow });
+    });
+  });
+
+  it('returns 404 FLOW_NOT_FOUND when the id is unknown', async () => {
+    await withApp(noopAgent, async (app) => {
+      const res = await app.inject({ method: 'GET', url: '/api/flows/flow_does_not_exist' });
+      expect(res.statusCode).toBe(404);
+      const body = res.json() as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('FLOW_NOT_FOUND');
+      expect(body.error.message).toContain('flow_does_not_exist');
+    });
+  });
+
+  it('round-trip: POST /generate then GET /:id returns the same flow', async () => {
+    const flow = buildSampleFlow({ id: 'flow_roundtrip' });
+    const agent = new StubAgent({ kind: 'ok', flow });
+    await withApp(agent, async (app) => {
+      const postRes = await app.inject({
+        method: 'POST',
+        url: '/api/flows/generate',
+        payload: { prompt: 'roundtrip prompt' },
+      });
+      expect(postRes.statusCode).toBe(200);
+
+      const getRes = await app.inject({ method: 'GET', url: `/api/flows/${flow.id}` });
+      expect(getRes.statusCode).toBe(200);
+      expect(getRes.json()).toEqual({ flow });
+    });
+  });
+});
