@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { EdgeSchema } from './edge';
-import { NodeSchema } from './node';
-import { TriggerSchema } from './trigger';
+import { EdgeSchema } from './edge.js';
+import { NodeSchema } from './node.js';
+import { TriggerSchema } from './trigger.js';
 
 export const FlowSchema = z.object({
   id: z.string().min(1),

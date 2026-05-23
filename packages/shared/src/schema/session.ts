@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { MessageSchema } from './message';
+import { MessageSchema } from './message.js';
 
 export const SessionStatusEnum = z.enum([
   'running',

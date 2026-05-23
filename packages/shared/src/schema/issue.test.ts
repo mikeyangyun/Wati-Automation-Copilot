@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { IssueCodeEnum, IssueSchema } from './issue';
+import { IssueCodeEnum, IssueSchema } from './issue.js';
 
 describe('IssueSchema', () => {
   it('parses a structural error issue', () => {

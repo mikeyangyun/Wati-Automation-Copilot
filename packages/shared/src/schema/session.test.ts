@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SessionSchema, SessionStatusEnum } from './session';
+import { SessionSchema, SessionStatusEnum } from './session.js';
 
 const baseSession = {
   id: 'sess_1',

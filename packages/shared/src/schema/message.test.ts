@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MessageSchema } from './message';
+import { MessageSchema } from './message.js';
 
 describe('MessageSchema (discriminated union)', () => {
   it('parses a bot message that carries a nodeId', () => {

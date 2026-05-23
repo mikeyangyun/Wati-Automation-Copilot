@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NodeSchema, NodeTypeEnum } from './node';
+import { NodeSchema, NodeTypeEnum } from './node.js';
 
 const base = { id: 'node_x', label: 'Label' };
 

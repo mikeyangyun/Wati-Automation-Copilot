@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { newEdgeId, newFlowId, newIssueId, newMessageId, newNodeId, newSessionId } from './ids';
+import { newEdgeId, newFlowId, newIssueId, newMessageId, newNodeId, newSessionId } from './ids.js';
 
 describe('id helpers', () => {
   it.each([

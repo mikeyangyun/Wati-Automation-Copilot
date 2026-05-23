@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { EdgeSchema } from './edge';
+import { EdgeSchema } from './edge.js';
 
 describe('EdgeSchema', () => {
   it('parses an unconditional edge', () => {

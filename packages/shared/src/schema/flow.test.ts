@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FlowSchema } from './flow';
+import { FlowSchema } from './flow.js';
 
 const minimalFlow = {
   id: 'flow_x',

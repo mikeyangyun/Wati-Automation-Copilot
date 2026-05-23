@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TriggerSchema } from './trigger';
+import { TriggerSchema } from './trigger.js';
 
 describe('TriggerSchema (discriminated union)', () => {
   it('parses new_message trigger without a value', () => {
