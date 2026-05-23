@@ -6,9 +6,46 @@
 
 ## Status
 
-**Pre-implementation.** This README captures the planned product, architecture, and API surface. The runtime scaffold (server, web, shared packages) is not yet in place; a Quick Start section will be added once the project boots.
+**Scaffold in place.** Monorepo, dev tooling, and a runnable Fastify + Vite skeleton are wired up. Agents, executor, and validator implementations are pending.
 
 For the product specification, see [PRODUCT.md](./PRODUCT.md).
+
+---
+
+## Quick Start
+
+**Prerequisites**
+
+- Node `>=20` (project pins Node 22 LTS via `.nvmrc`)
+- pnpm `>=9` (project pins `pnpm@11.1.2` via `packageManager`)
+
+**Install and run**
+
+```bash
+nvm use                                                # reads .nvmrc
+pnpm install
+cp packages/server/.env.example packages/server/.env   # fill LLM_API_KEY when agents land
+pnpm dev                                               # server on :3000, web on :5173
+```
+
+**Verify the skeleton**
+
+```bash
+curl http://localhost:3000/health
+# -> { "status": "ok", "uptime": ..., "timestamp": "..." }
+```
+
+Then open <http://localhost:5173> — the three-panel placeholder UI should load.
+
+**Other scripts**
+
+| Command | What it does |
+|---------|--------------|
+| `pnpm test` | Run Vitest across all packages |
+| `pnpm typecheck` | Run `tsc` across all packages |
+| `pnpm lint` | Run ESLint across the repo |
+| `pnpm format` | Run Prettier in write mode |
+| `pnpm build` | Build all packages |
 
 ---
 
@@ -85,10 +122,10 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 
 ```
 Wati-Automation-Copilot/
-├── packages/                  # planned — not yet scaffolded
-│   ├── shared/                # Zod schema + shared TS types
-│   ├── server/                # Fastify API, agents, executor, validator, config
-│   └── web/                   # React + Vite UI (read-only graph + mock chat)
+├── packages/
+│   ├── shared/                # Zod schema + shared TS types (Flow types pending)
+│   ├── server/                # Fastify API, /health, config, Pino (agents/executor pending)
+│   └── web/                   # React + Vite three-panel UI (graph + chat pending)
 ├── docs/
 │   ├── architecture.md        # Runtime sequence diagrams
 │   └── data-model.md          # Entity fields + REST reference
@@ -98,7 +135,7 @@ Wati-Automation-Copilot/
 └── LICENSE
 ```
 
-Three workspace packages plus shared docs.
+Three workspace packages plus shared docs. Scaffold is runnable; business logic (agents, executor, validator, flow graph) lands incrementally on top.
 
 ---
 
