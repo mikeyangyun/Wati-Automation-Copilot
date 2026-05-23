@@ -16,6 +16,7 @@ const stubAgent: FlowGenerator = {
 };
 
 const stubReviewer: FlowReviewer = {
+  review: async () => [],
   explain: async () => {
     throw new Error('stub reviewer should not be invoked by these tests');
   },
