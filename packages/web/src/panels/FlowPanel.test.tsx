@@ -108,6 +108,17 @@ describe('FlowPanel — Explain interaction', () => {
     expect(screen.getByRole('button', { name: /refresh explanation/i })).toBeEnabled();
   });
 
+  it('renders the explanation block before the flow JSON in DOM order (AC-E7)', () => {
+    const explanation = '- A short explanation';
+    renderPanel(readyStatus, { kind: 'ready', explanation });
+
+    const block = screen.getByTestId('explanation');
+    const json = screen.getByTestId('flow-json');
+
+    // DOCUMENT_POSITION_FOLLOWING means `json` follows `block` in document order.
+    expect(block.compareDocumentPosition(json) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('disables the button and dims the block while refreshing (previous explanation still visible)', () => {
     renderPanel(readyStatus, {
       kind: 'ready',
