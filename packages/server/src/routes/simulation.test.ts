@@ -18,6 +18,9 @@ const noopAgent: FlowGenerator = {
 };
 
 const noopReviewer: FlowReviewer = {
+  review: async () => {
+    throw new Error('simulation.test.ts does not exercise review; unreachable');
+  },
   explain: async () => {
     throw new Error('simulation route tests do not invoke the reviewer');
   },

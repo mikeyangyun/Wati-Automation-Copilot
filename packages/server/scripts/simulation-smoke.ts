@@ -66,6 +66,7 @@ const stubAgent: FlowGenerator = {
 };
 
 const stubReviewer: FlowReviewer = {
+  review: async () => [],
   explain: async () => {
     throw new Error('QA smoke does not exercise explain; this stub is unreachable');
   },
