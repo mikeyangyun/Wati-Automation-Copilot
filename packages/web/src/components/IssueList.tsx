@@ -27,14 +27,31 @@ function issueSource(code: IssueCode): 'rule' | 'llm' | 'meta' {
 
 export interface IssueListProps {
   result: ReviewResult;
+  /**
+   * Index of the currently selected issue, if any. Drives the visual "active"
+   * state and the upstream graph-highlight selection. Empty / `null` when
+   * nothing is selected.
+   */
+  selectedIndex?: number | null;
+  /**
+   * Fired when the user clicks an issue. Passes either the new index, or
+   * `null` if the click toggled the active card off. The parent decides what
+   * to do with the selection (typically: store in App state and pass to
+   * `FlowPanel.selectedNodeIds`).
+   */
+  onSelect?: (index: number | null) => void;
 }
 
 /**
  * Renders a hybrid-review report. Pure presentational component: it does not
  * fetch, refetch, or sort — the server ships an already-sorted list and a
  * pre-rendered summary string. Keeps client formatting drift out of the loop.
+ *
+ * When `onSelect` is supplied the cards become interactive: clicking selects
+ * an issue, clicking the same card again deselects. The graph uses the
+ * selection to highlight affected nodes (see `FlowGraph.selectedNodeIds`).
  */
-export function IssueList({ result }: IssueListProps) {
+export function IssueList({ result, selectedIndex = null, onSelect }: IssueListProps) {
   if (result.issues.length === 0) {
     return (
       <div className="issue-list issue-list-empty" data-testid="issue-list-empty">
@@ -43,19 +60,49 @@ export function IssueList({ result }: IssueListProps) {
     );
   }
 
+  const interactive = typeof onSelect === 'function';
+
   return (
     <div className="issue-list" data-testid="issue-list">
       <p className="issue-summary">{result.summary}</p>
       <ul className="issue-items">
-        {result.issues.map((issue, idx) => (
-          <li
-            key={`${idx}-${issue.code}-${issue.nodeIds.join(',')}`}
-            className={`issue issue-${issue.severity}`}
-            data-testid={`issue-${issue.severity}`}
-          >
-            <IssueRow issue={issue} />
-          </li>
-        ))}
+        {result.issues.map((issue, idx) => {
+          const isSelected = idx === selectedIndex;
+          const className = ['issue', `issue-${issue.severity}`, isSelected ? 'issue-selected' : '']
+            .filter(Boolean)
+            .join(' ');
+          const li = (
+            <li
+              key={`${idx}-${issue.code}-${issue.nodeIds.join(',')}`}
+              className={className}
+              data-testid={`issue-${issue.severity}`}
+              data-selected={isSelected || undefined}
+            >
+              <IssueRow issue={issue} />
+            </li>
+          );
+          if (!interactive) return li;
+          // Wrap the <li> contents in a real <button> so keyboard, focus, and
+          // screen-reader semantics come for free. The <li> stays so the
+          // existing severity test selectors still resolve.
+          return (
+            <li
+              key={`${idx}-${issue.code}-${issue.nodeIds.join(',')}`}
+              className={className}
+              data-testid={`issue-${issue.severity}`}
+              data-selected={isSelected || undefined}
+            >
+              <button
+                type="button"
+                className="issue-button"
+                aria-pressed={isSelected}
+                onClick={() => onSelect!(isSelected ? null : idx)}
+              >
+                <IssueRow issue={issue} />
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
