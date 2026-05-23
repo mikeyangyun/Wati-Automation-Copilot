@@ -2,7 +2,7 @@
 
 > **Document type:** Product prototype & scope definition  
 > **Version:** 1.0  
-> **Status:** Approved for implementation
+> **Status:** Specification locked; implementation pending
 
 ---
 
@@ -26,7 +26,7 @@ Users describe automation intent in **natural language**. The system produces a 
 | **Core artifact** | Structured flow (machine-readable definition + read-only node graph) |
 | **AI capabilities** | Generation, explanation, and review |
 | **Validation** | Multi-turn mock conversation with fallback handling and session reset |
-| **Node vocabulary** | Aligned with Wati Chatbot Builder (send message, ask question, condition, etc.) |
+| **Node vocabulary** | Aligned with Wati Chatbot Builder: `trigger`, `send_message`, `ask_question`, `condition`, `assign_to_team`, `api_call`, `wait` (see [docs/data-model.md](./docs/data-model.md)) |
 
 ### 2.2 Out of Scope (MVP)
 
@@ -256,7 +256,7 @@ flowchart TD
     F --> Q
 ```
 
-**Node types used:** `trigger` · `ask_question` · `condition` · `assign_to_team` · `send_message`
+**Node types used:** `trigger`, `ask_question`, `condition`, `assign_to_team`, `send_message`
 
 | Test | User input | Expected result |
 |------|------------|-----------------|
@@ -270,7 +270,7 @@ Review must pass on a complete version of this flow; must fail if seller path or
 
 ## 8. Simulation & Review
 
-**Simulation** runs the designed flow step by step in mock chat — not open-ended conversation. Pauses on questions; follows branches on match; uses fallback or clarification when reply is unclear; **Reset** restarts from entry.
+**Simulation** runs the designed flow step by step in mock chat — not open-ended conversation. Pauses on questions; follows branches on match; uses fallback or clarification when reply is unclear; **Reset** restarts from entry. `api_call` nodes are accepted in generated flows but executed as mocks during simulation — no real HTTP request is made.
 
 **Review** returns findings with severity (`error`, `warning`, `info`):
 
