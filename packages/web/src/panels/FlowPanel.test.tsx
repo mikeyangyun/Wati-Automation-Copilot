@@ -64,12 +64,11 @@ describe('FlowPanel — base rendering', () => {
     expect(screen.getByText(/generating flow/i)).toBeInTheDocument();
   });
 
-  it('renders the flow JSON when status is ready and surfaces the Explain button', () => {
+  it('renders the graph by default when status is ready and surfaces the Explain button (AC-V1)', () => {
     const flow = buildFlow();
     renderPanel({ kind: 'ready', flow });
-    const pre = screen.getByTestId('flow-json');
-    expect(pre).toBeInTheDocument();
-    expect(JSON.parse(pre.textContent ?? '')).toEqual(flow);
+    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
   });
 
@@ -121,15 +120,15 @@ describe('FlowPanel — Explain interaction', () => {
     expect(screen.getByRole('button', { name: /refresh explanation/i })).toBeEnabled();
   });
 
-  it('renders the explanation block before the flow JSON in DOM order (AC-E7)', () => {
+  it('renders the explanation block before the flow body in DOM order (AC-E7)', () => {
     const explanation = '- A short explanation';
     renderPanel(readyStatus, { kind: 'ready', explanation });
 
     const block = screen.getByTestId('explanation');
-    const json = screen.getByTestId('flow-json');
+    const body = screen.getByTestId('flow-graph');
 
-    // DOCUMENT_POSITION_FOLLOWING means `json` follows `block` in document order.
-    expect(block.compareDocumentPosition(json) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // DOCUMENT_POSITION_FOLLOWING means `body` follows `block` in document order.
+    expect(block.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('disables the button and dims the block while refreshing (previous explanation still visible)', () => {
@@ -256,11 +255,49 @@ describe('FlowPanel — Review interaction (Phase 4)', () => {
     expect(onCloseReview).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the review block above the flow JSON in DOM order', () => {
+  it('renders the review block above the flow body in DOM order', () => {
     renderPanel(readyStatus, idleExplain, {}, { kind: 'ready', result: buildResult() });
     const block = screen.getByTestId('review');
-    const json = screen.getByTestId('flow-json');
-    expect(block.compareDocumentPosition(json) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const body = screen.getByTestId('flow-graph');
+    expect(block.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('FlowPanel — Graph / JSON view toggle (Phase 5)', () => {
+  const flow = buildFlow();
+  const readyStatus: AppStatus = { kind: 'ready', flow };
+
+  it('defaults to the graph view when status becomes ready (AC-V1)', () => {
+    renderPanel(readyStatus);
+    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
+  });
+
+  it('exposes a "View JSON" toggle in the header that switches to the JSON view (AC-V2)', async () => {
+    renderPanel(readyStatus);
+    const toggle = screen.getByTestId('flow-view-toggle');
+    expect(toggle).toHaveTextContent('View JSON');
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+    expect(screen.getByTestId('flow-json')).toBeInTheDocument();
+    expect(screen.queryByTestId('flow-graph')).not.toBeInTheDocument();
+    expect(toggle).toHaveTextContent('View graph');
+  });
+
+  it('toggles back to the graph view on a second click', async () => {
+    renderPanel(readyStatus);
+    const user = userEvent.setup();
+    const toggle = screen.getByTestId('flow-view-toggle');
+    await user.click(toggle);
+    await user.click(toggle);
+    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(toggle).toHaveTextContent('View JSON');
+  });
+
+  it('hides the toggle while the flow is not ready', () => {
+    renderPanel({ kind: 'idle' });
+    expect(screen.queryByTestId('flow-view-toggle')).not.toBeInTheDocument();
   });
 });
 

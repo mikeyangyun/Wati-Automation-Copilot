@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Severity } from 'shared';
 
 import { IssueList } from '../components/IssueList.js';
+import { FlowGraph } from '../graph/FlowGraph.js';
 import type { AppStatus, ExplainStatus, ReviewStatus } from '../state.js';
+
+type FlowView = 'graph' | 'json';
 
 export interface FlowPanelProps {
   status: AppStatus;
@@ -11,6 +16,17 @@ export interface FlowPanelProps {
   onCloseExplain: () => void;
   onReview: () => void;
   onCloseReview: () => void;
+  /**
+   * Node ids highlighted in the graph (typically the affected nodes of the
+   * currently-selected review issue). Empty / undefined → no highlight.
+   */
+  selectedNodeIds?: string[];
+  /** Severity of the currently selected issue — drives glow color. */
+  selectedSeverity?: Severity;
+  /** Index of the currently-selected issue card, or `null` when none. */
+  selectedIssueIndex?: number | null;
+  /** Fired when the user clicks an issue card. App owns the resulting state. */
+  onSelectIssue?: (index: number | null) => void;
 }
 
 export function FlowPanel({
@@ -21,8 +37,15 @@ export function FlowPanel({
   onCloseExplain,
   onReview,
   onCloseReview,
+  selectedNodeIds,
+  selectedSeverity,
+  selectedIssueIndex,
+  onSelectIssue,
 }: FlowPanelProps) {
   const flowReady = status.kind === 'ready';
+  // The view toggle is presentation-only, so it lives in the panel rather
+  // than bubbling all the way up to App. Graph is the default (AC-V1).
+  const [view, setView] = useState<FlowView>('graph');
 
   const isExplainLoading = explainStatus.kind === 'loading';
   const isExplainRefreshing = explainStatus.kind === 'ready' && explainStatus.refreshing === true;
@@ -66,12 +89,32 @@ export function FlowPanel({
             >
               {reviewLabel}
             </button>
+            <button
+              type="button"
+              className="flow-view-btn"
+              onClick={() => setView(view === 'graph' ? 'json' : 'graph')}
+              data-testid="flow-view-toggle"
+            >
+              {view === 'graph' ? 'View JSON' : 'View graph'}
+            </button>
           </div>
         )}
       </header>
       {showExplain && <ExplanationBlock status={explainStatus} onClose={onCloseExplain} />}
-      {showReview && <ReviewBlock status={reviewStatus} onClose={onCloseReview} />}
-      <FlowPanelBody status={status} />
+      {showReview && (
+        <ReviewBlock
+          status={reviewStatus}
+          onClose={onCloseReview}
+          selectedIssueIndex={selectedIssueIndex ?? null}
+          onSelectIssue={onSelectIssue}
+        />
+      )}
+      <FlowPanelBody
+        status={status}
+        view={view}
+        selectedNodeIds={selectedNodeIds}
+        selectedSeverity={selectedSeverity}
+      />
     </section>
   );
 }
@@ -163,13 +206,29 @@ function ReviewBlock({ status, onClose }: { status: ReviewStatus; onClose: () =>
   );
 }
 
-function FlowPanelBody({ status }: { status: AppStatus }) {
+interface FlowPanelBodyProps {
+  status: AppStatus;
+  view: FlowView;
+  selectedNodeIds?: string[];
+  selectedSeverity?: Severity;
+}
+
+function FlowPanelBody({ status, view, selectedNodeIds, selectedSeverity }: FlowPanelBodyProps) {
   switch (status.kind) {
     case 'idle':
       return <p className="placeholder">No flow yet. Enter a prompt and click Generate.</p>;
     case 'generating':
       return <p className="placeholder">Generating flow…</p>;
     case 'ready':
+      if (view === 'graph') {
+        return (
+          <FlowGraph
+            flow={status.flow}
+            {...(selectedNodeIds !== undefined ? { selectedNodeIds } : {})}
+            {...(selectedSeverity !== undefined ? { selectedSeverity } : {})}
+          />
+        );
+      }
       return (
         <pre className="flow-json" data-testid="flow-json">
           {JSON.stringify(status.flow, null, 2)}
