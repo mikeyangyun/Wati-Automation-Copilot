@@ -162,7 +162,14 @@ function ExplanationBlock({ status, onClose }: { status: ExplainStatus; onClose:
   );
 }
 
-function ReviewBlock({ status, onClose }: { status: ReviewStatus; onClose: () => void }) {
+interface ReviewBlockProps {
+  status: ReviewStatus;
+  onClose: () => void;
+  selectedIssueIndex: number | null;
+  onSelectIssue?: (index: number | null) => void;
+}
+
+function ReviewBlock({ status, onClose, selectedIssueIndex, onSelectIssue }: ReviewBlockProps) {
   if (status.kind === 'idle') return null;
 
   if (status.kind === 'loading') {
@@ -201,7 +208,11 @@ function ReviewBlock({ status, onClose }: { status: ReviewStatus; onClose: () =>
       >
         ×
       </button>
-      <IssueList result={status.result} />
+      <IssueList
+        result={status.result}
+        selectedIndex={selectedIssueIndex}
+        {...(onSelectIssue ? { onSelect: onSelectIssue } : {})}
+      />
     </div>
   );
 }
