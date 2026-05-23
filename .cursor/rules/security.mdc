@@ -1,0 +1,33 @@
+---
+description: Wati Copilot — secrets, env, and leak prevention
+alwaysApply: true
+---
+
+# Security — Wati Automation Copilot
+
+Applies to this repo only (`packages/shared`, `packages/server`, `packages/web`).
+
+## Secrets & env
+
+- **Never hardcode** `LLM_API_KEY`, tokens, or passwords in source, tests, comments, logs, fixtures, or demo scripts.
+- **Server only:** load `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` from env in `server/llm/factory.ts`. Route all LLM calls through `LLMProvider` — agents must not import vendor SDKs with inline keys.
+- **Web never holds secrets.** Do not use `VITE_*` for API keys (Vite exposes them to the browser). Backend proxies every LLM request.
+- **`.env.example`** — placeholders only (e.g. `LLM_API_KEY=your-key-here`). Real values in local `.env`; keep `.env`, `.env.local`, `*.pem` in `.gitignore`.
+
+## Flow & test data
+
+- **`api_call` nodes are mock-only in MVP.** Do not embed real URLs, auth headers, or keys in flow JSON, seed data, or snapshots.
+- Tests/fixtures use fake values: `sk-test-fake-not-real`, never copy-paste a real key.
+
+## User input & logging
+
+- NL prompts may contain business-sensitive text. Do not log full prompts or LLM responses by default; log ids/metadata only.
+- Do not log env values, `Authorization` headers, or raw provider error bodies.
+
+## Agent checklist (before commit / PR)
+
+1. Scan the diff for `sk-`, `Bearer `, `LLM_API_KEY=`, or pasted tokens.
+2. Confirm no `.env` or credential files are staged.
+3. Reject or redact any secret found — rotate the key if it was ever committed or shared.
+
+If unsure, ask the user to set env vars locally instead of embedding values in code.
