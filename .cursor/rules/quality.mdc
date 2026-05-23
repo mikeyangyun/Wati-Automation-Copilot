@@ -28,6 +28,7 @@ Applies to this repo only (`packages/shared`, `packages/server`, `packages/web`)
 - **Cover edge cases:** missing fallback, unreachable nodes, unclear user reply, max retry exceeded, dangling edges.
 - **Skip theater** — no trivial "returns true" tests; mock `LLMProvider` only when testing agents, not executor/validator.
 - **Regressions:** changing executor step logic or structural rules → add or update a test in the same change.
+- **Test description style** — describe behaviour or contract, not roadmap stage. Avoid product-phase words in `describe` / `it` strings (`MVP`, `V1`, `V2`, `take-home`, `phase 1`); say what the code does, not where it sits on the timeline.
 
 ## Observability
 
