@@ -33,4 +33,4 @@ The Copilot sits **upstream of publish** — design and validate first, then con
 | Multi-turn mock simulation with fallback and reset | Persistent storage and flow library |
 | Hybrid review (structural + AI semantic) | AI-authored runtime chat replies |
 
-See [PRODUCT.md §2](./PRODUCT.md) for full details and rationale.
+See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
