@@ -55,7 +55,19 @@ describe('IssueSchema', () => {
         'MISSING_BRANCH',
         'AMBIGUOUS_ROUTING',
         'UNCLEAR_QUESTION',
+        'SEMANTIC_REVIEW_UNAVAILABLE',
       ]),
     );
+  });
+
+  it('parses the SEMANTIC_REVIEW_UNAVAILABLE info issue', () => {
+    const result = IssueSchema.parse({
+      severity: 'info',
+      code: 'SEMANTIC_REVIEW_UNAVAILABLE',
+      message: 'LLM semantic review is temporarily unavailable.',
+    });
+    expect(result.severity).toBe('info');
+    expect(result.code).toBe('SEMANTIC_REVIEW_UNAVAILABLE');
+    expect(result.nodeIds).toEqual([]);
   });
 });

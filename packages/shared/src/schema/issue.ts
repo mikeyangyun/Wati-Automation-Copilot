@@ -12,6 +12,7 @@ export const IssueCodeEnum = z.enum([
   'MISSING_BRANCH',
   'AMBIGUOUS_ROUTING',
   'UNCLEAR_QUESTION',
+  'SEMANTIC_REVIEW_UNAVAILABLE',
 ]);
 export type IssueCode = z.infer<typeof IssueCodeEnum>;
 
