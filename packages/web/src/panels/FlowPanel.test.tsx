@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import type { Flow } from 'shared';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -64,10 +64,10 @@ describe('FlowPanel — base rendering', () => {
     expect(screen.getByText(/generating flow/i)).toBeInTheDocument();
   });
 
-  it('renders the graph by default when status is ready and surfaces the Explain button (AC-V1)', () => {
+  it('renders the graph by default when status is ready and surfaces the Explain button (AC-V1)', async () => {
     const flow = buildFlow();
     renderPanel({ kind: 'ready', flow });
-    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(await screen.findByTestId('flow-graph')).toBeInTheDocument();
     expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
   });
@@ -102,7 +102,7 @@ describe('FlowPanel — Explain interaction', () => {
     expect(screen.getByRole('button', { name: /explaining/i })).toBeDisabled();
   });
 
-  it('renders the explanation as markdown bullets and switches the button label to Refresh', () => {
+  it('renders the explanation as markdown bullets and switches the button label to Refresh', async () => {
     const explanation = `- When a contact messages, the bot asks buyer or seller.
 - Buyers go to Sales.
 - Sellers receive support.`;
@@ -110,9 +110,13 @@ describe('FlowPanel — Explain interaction', () => {
 
     const block = screen.getByTestId('explanation');
     expect(block).toBeInTheDocument();
-    // react-markdown should emit a <ul> with 3 <li> items
+
+    // react-markdown is lazy-loaded; wait for the bullet list to mount.
+    await waitFor(() => {
+      const items = block.querySelectorAll('li');
+      expect(items).toHaveLength(3);
+    });
     const items = block.querySelectorAll('li');
-    expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent('asks buyer or seller');
     expect(items[1]).toHaveTextContent('Buyers go to Sales');
     expect(items[2]).toHaveTextContent('Sellers receive support');
@@ -120,12 +124,12 @@ describe('FlowPanel — Explain interaction', () => {
     expect(screen.getByRole('button', { name: /refresh explanation/i })).toBeEnabled();
   });
 
-  it('renders the explanation block before the flow body in DOM order (AC-E7)', () => {
+  it('renders the explanation block before the flow body in DOM order (AC-E7)', async () => {
     const explanation = '- A short explanation';
     renderPanel(readyStatus, { kind: 'ready', explanation });
 
     const block = screen.getByTestId('explanation');
-    const body = screen.getByTestId('flow-graph');
+    const body = await screen.findByTestId('flow-graph');
 
     // DOCUMENT_POSITION_FOLLOWING means `body` follows `block` in document order.
     expect(block.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -255,10 +259,10 @@ describe('FlowPanel — Review interaction (Phase 4)', () => {
     expect(onCloseReview).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the review block above the flow body in DOM order', () => {
+  it('renders the review block above the flow body in DOM order', async () => {
     renderPanel(readyStatus, idleExplain, {}, { kind: 'ready', result: buildResult() });
     const block = screen.getByTestId('review');
-    const body = screen.getByTestId('flow-graph');
+    const body = await screen.findByTestId('flow-graph');
     expect(block.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
@@ -267,14 +271,15 @@ describe('FlowPanel — Graph / JSON view toggle (Phase 5)', () => {
   const flow = buildFlow();
   const readyStatus: AppStatus = { kind: 'ready', flow };
 
-  it('defaults to the graph view when status becomes ready (AC-V1)', () => {
+  it('defaults to the graph view when status becomes ready (AC-V1)', async () => {
     renderPanel(readyStatus);
-    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(await screen.findByTestId('flow-graph')).toBeInTheDocument();
     expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
   });
 
   it('exposes a "View JSON" toggle in the header that switches to the JSON view (AC-V2)', async () => {
     renderPanel(readyStatus);
+    await screen.findByTestId('flow-graph');
     const toggle = screen.getByTestId('flow-view-toggle');
     expect(toggle).toHaveTextContent('View JSON');
 
@@ -287,11 +292,12 @@ describe('FlowPanel — Graph / JSON view toggle (Phase 5)', () => {
 
   it('toggles back to the graph view on a second click', async () => {
     renderPanel(readyStatus);
+    await screen.findByTestId('flow-graph');
     const user = userEvent.setup();
     const toggle = screen.getByTestId('flow-view-toggle');
     await user.click(toggle);
     await user.click(toggle);
-    expect(screen.getByTestId('flow-graph')).toBeInTheDocument();
+    expect(await screen.findByTestId('flow-graph')).toBeInTheDocument();
     expect(toggle).toHaveTextContent('View JSON');
   });
 
