@@ -77,8 +77,6 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
       const sourceNode = layout.nodes.find((n) => n.id === e.source);
       const stroke = sourceNode ? getNodeTypeStyle(sourceNode.type).accent : '#94a3b8';
       const data: StaggeredEdgeData = {
-        siblingIndex: e.siblingIndex,
-        siblingCount: e.siblingCount,
         color: stroke,
         fallback: e.label === 'fallback',
       };
@@ -87,7 +85,6 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
         source: e.source,
         target: e.target,
         type: 'staggered',
-        ...(e.label !== undefined ? { label: e.label } : {}),
         data,
       };
     });

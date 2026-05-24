@@ -6,13 +6,13 @@
 
 ## Status
 
-**Implementation complete.** All product surfaces are implemented end-to-end and covered by 563 automated tests (73 shared / 225 server / 265 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
+**Implementation complete.** All product surfaces are implemented end-to-end and covered by 554 automated tests (73 shared / 225 server / 256 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
 - **Explain** — markdown-rendered summary of how a flow behaves.
 - **Hybrid review** — structural rules + semantic LLM analysis, merged by severity, with graceful degradation when the LLM is unavailable. Click an issue card to highlight the affected nodes on the graph.
-- **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle. Wati-style node cards (colored header, type-specific body preview, condition labels on edges) and issue → node highlight on click. Edge labels are staggered vertically per source (22 px step, capped band so labels never spill across ranks) so they never pile up on wide branching flows; long labels truncate with ellipsis + hover tooltip; fallback edges render dashed for at-a-glance visual hierarchy.
+- **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle. Wati-style node cards (colored header, type-specific body preview, expected-replies chips on `ask_question` cards) and issue → node highlight on click. Edges are intentionally labelless — matching Wati's own builder, routing context is carried by the source `ask_question`'s chips and the edge's stroke colour (inherited from the source node's type accent). Fallback / catch-all edges render with a dashed stroke so the primary branches read first. The underlying `condition` is still present in the flow JSON, Explain output, and simulation traces — only the canvas painting was simplified.
 - **Workflow stepper** — three-step indicator (**Describe → Flow → Test**) in the app header advances as the user progresses, replacing per-panel step labels.
 
 For the product specification, see [PRODUCT.md](./PRODUCT.md). For a paste-ready demo script, see [DEMO.md](./DEMO.md).
