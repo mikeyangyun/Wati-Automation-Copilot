@@ -6,7 +6,7 @@
 
 ## Status
 
-**Feature complete.** All product surfaces are implemented end-to-end and covered by 530 automated tests:
+**Feature complete.** All product surfaces are implemented end-to-end and covered by 540 automated tests:
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.

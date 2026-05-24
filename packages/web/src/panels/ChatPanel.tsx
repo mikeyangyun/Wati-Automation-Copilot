@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { AwaitingInput, Flow, Message, SimulationEvent } from 'shared';
 
 import type { SessionEnvelope } from '../api.js';
+import { BotAvatar } from '../components/BotAvatar.js';
 import type { AppErrorSummary, SimulationStatus } from '../state.js';
 
 export interface ChatPanelProps {
@@ -38,7 +39,18 @@ export function ChatPanel({ status, onStep, onReset, flow, onClose }: ChatPanelP
       aria-label={isWidget ? 'Test chatbot' : 'Mock chat'}
     >
       <header className="chat-header">
-        <h2>{isWidget ? 'Test Chatbot' : 'Chat'}</h2>
+        <div className="chat-brand">
+          <BotAvatar online={active} />
+          <div className="chat-brand-text">
+            <h2>{isWidget ? 'Test Chatbot' : 'Chat'}</h2>
+            <span
+              className={`chat-brand-status${active ? ' chat-brand-status-online' : ''}`}
+              data-testid="chat-brand-status"
+            >
+              {active ? 'Online · simulating your flow' : 'Idle'}
+            </span>
+          </div>
+        </div>
         <div className="chat-header-actions">
           {active && (
             <>

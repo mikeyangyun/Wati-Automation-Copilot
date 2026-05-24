@@ -11,6 +11,7 @@ import {
   stepSession,
   type SessionEnvelope,
 } from './api.js';
+import { BrandMark } from './components/BrandMark.js';
 import { Stepper, type StepperStep } from './components/Stepper.js';
 import { ChatPanel } from './panels/ChatPanel.js';
 import { FlowPanel } from './panels/FlowPanel.js';
@@ -350,7 +351,13 @@ export function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Wati Automation Builder Copilot</h1>
+        <div className="brand">
+          <BrandMark />
+          <div className="brand-text">
+            <h1>Wati Automation Builder Copilot</h1>
+            <p className="brand-tagline">Plain English → WhatsApp automation flow</p>
+          </div>
+        </div>
         <Stepper steps={workflowSteps} />
       </header>
       <main className="panels">

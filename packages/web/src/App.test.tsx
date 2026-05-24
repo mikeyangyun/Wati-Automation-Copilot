@@ -96,6 +96,21 @@ describe('App — flow generation', () => {
     expect(screen.getByText(/no flow yet/i)).toBeInTheDocument();
   });
 
+  it('renders the header brand cluster (logo + title + tagline)', () => {
+    render(<App />);
+    // The H1 is the canonical name — keep it as the screen-reader anchor.
+    expect(
+      screen.getByRole('heading', { level: 1, name: /wati automation builder copilot/i }),
+    ).toBeInTheDocument();
+    // The product-purpose tagline is what tells a first-time visitor what
+    // this tool actually does, so its copy should be load-bearing-stable.
+    expect(screen.getByText('Plain English → WhatsApp automation flow')).toBeInTheDocument();
+    // The brand mark is rendered as decorative (no role="img") so we
+    // assert via its class anchor rather than role queries.
+    const brand = document.querySelector('.brand .brand-mark');
+    expect(brand).not.toBeNull();
+  });
+
   it('shows the generated flow JSON after a successful Generate click', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());

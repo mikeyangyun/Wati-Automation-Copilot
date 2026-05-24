@@ -37,11 +37,51 @@ body {
   background: var(--panel-bg);
 }
 
+/* ---------- Brand cluster (logo + title + tagline) ---------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(79, 70, 229, 0.18));
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .header h1 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  flex-shrink: 0;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brand-tagline {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On narrow viewports drop the tagline — it's a nice-to-have, not a
+ * navigation affordance, and we keep the stepper visible at all costs. */
+@media (max-width: 720px) {
+  .brand-tagline {
+    display: none;
+  }
 }
 
 /* ---------- Workflow stepper ---------- */
@@ -1202,7 +1242,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+/* Chat brand cluster: bot avatar + title + presence status. Gives the
+ * test simulator a familiar messenger-style identity instead of a bare
+ * label, which reinforces what this surface actually simulates. */
+.chat-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .chat-header h2 {
@@ -1212,6 +1269,72 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+  line-height: 1.2;
+}
+
+.chat-brand-status {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-brand-status-online {
+  color: #128c7e;
+}
+
+/* ---------- Bot avatar (face + optional online dot) ---------- */
+
+.bot-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bot-avatar svg {
+  display: block;
+}
+
+/* Presence dot pinned to the lower-right corner, with a white ring so
+ * it reads against any chat-panel background. Sized off the avatar so
+ * the geometry stays consistent if the parent passes a different
+ * `size`. */
+.bot-avatar-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #25d366;
+  box-shadow: 0 0 0 2px var(--panel-bg, #ffffff);
+  animation: bot-avatar-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes bot-avatar-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--panel-bg, #ffffff),
+      0 0 0 0 rgba(37, 211, 102, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--panel-bg, #ffffff),
+      0 0 0 4px rgba(37, 211, 102, 0);
+  }
+}
+
+/* `prefers-reduced-motion` users get a static dot — the meaning is
+ * carried by colour and label, not the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .bot-avatar-dot {
+    animation: none;
+  }
 }
 
 .chat-header-actions {

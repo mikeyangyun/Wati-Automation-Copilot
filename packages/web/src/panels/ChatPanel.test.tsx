@@ -33,6 +33,34 @@ describe('ChatPanel', () => {
     expect(screen.getByText(/no simulation yet/i)).toBeInTheDocument();
   });
 
+  it('renders the bot brand cluster with an Idle status label when inactive', () => {
+    render(<ChatPanel status={{ kind: 'inactive' }} onStep={vi.fn()} onReset={vi.fn()} />);
+    // Bot avatar present (decorative, so we anchor by testid).
+    expect(screen.getByTestId('bot-avatar')).toBeInTheDocument();
+    // Presence label reads "Idle" when no session is active and DOES NOT
+    // carry the online modifier — the WhatsApp-green styling must be
+    // reserved for an actually-running simulation.
+    const status = screen.getByTestId('chat-brand-status');
+    expect(status).toHaveTextContent(/idle/i);
+    expect(status).not.toHaveClass('chat-brand-status-online');
+  });
+
+  it('flips the brand status to Online (with the online modifier) when a session is active', () => {
+    render(
+      <ChatPanel
+        status={{ kind: 'active', envelope: buildEnvelope() }}
+        onStep={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    const status = screen.getByTestId('chat-brand-status');
+    expect(status).toHaveTextContent(/online/i);
+    expect(status).toHaveClass('chat-brand-status-online');
+    // And the presence dot mounts on the avatar so users see the
+    // pulsing green "online" affordance.
+    expect(document.querySelector('.bot-avatar-dot')).not.toBeNull();
+  });
+
   it('renders a starting hint while the simulation is bootstrapping', () => {
     render(<ChatPanel status={{ kind: 'starting' }} onStep={vi.fn()} onReset={vi.fn()} />);
     expect(screen.getByText(/starting simulation/i)).toBeInTheDocument();
