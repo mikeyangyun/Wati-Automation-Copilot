@@ -269,6 +269,27 @@ body {
   color: #b54708;
 }
 
+/* Slow-prompt warning surfaced as its own row beneath the textarea so it
+ * never overlaps the starter cards even at narrow widths. */
+.prompt-charwarn {
+  margin-top: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #b54708;
+  background: #fff7ed;
+  border: 1px solid #fde0c2;
+  border-radius: 6px;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .prompt-submit {
   display: inline-flex;
   align-items: center;
@@ -577,15 +598,16 @@ body {
   border-top: 1px dashed var(--border);
 }
 
-/* Inline shortcut chip rendered next to the Generate button. */
+/* Inline shortcut chip rendered next to the Generate button. The parent
+ * `.prompt-actions` is a flex container with `gap`, so we don't need an
+ * explicit horizontal margin here — that also lets the chip wrap below
+ * the button on very narrow panels instead of overflowing. */
 .prompt-shortcut-inline {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 10px;
   font-size: 11.5px;
   color: var(--muted);
-  vertical-align: middle;
 }
 
 .prompt-shortcut-key {
@@ -612,14 +634,6 @@ body {
   border-bottom-width: 2px;
   border-radius: 4px;
   line-height: 1;
-}
-
-/* The actions row was a plain `margin-top: 12px`. Switch to flex so the
- * inline shortcut chip aligns with the button vertically. */
-.prompt-actions {
-  display: flex;
-  align-items: center;
-  margin-top: 12px;
 }
 
 .flow-json {

@@ -119,14 +119,25 @@ export function PromptPanel({
           className="prompt-textarea"
           maxLength={PROMPT_SOFT_LIMIT * 4}
         />
+        {/*
+         * The counter is a compact, absolutely-positioned chip in the
+         * textarea corner. Long warning text used to live inside it, but
+         * for prompts that pushed over the soft limit the warning could
+         * wrap and overlap the starter cards below. We now surface the
+         * warning as a separate row beneath the field instead.
+         */}
         <div
           className={`prompt-charcount${overSoftLimit ? ' prompt-charcount-warn' : ''}`}
           aria-live="polite"
         >
           {charCount}
-          {overSoftLimit ? ` · long prompts may regenerate slowly` : ''}
         </div>
       </div>
+      {overSoftLimit ? (
+        <div className="prompt-charwarn" role="status" aria-live="polite">
+          Long prompts may regenerate slowly.
+        </div>
+      ) : null}
 
       <div className="prompt-actions">
         <button

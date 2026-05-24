@@ -26,7 +26,7 @@ vi.mock('./api.js', () => ({
   reviewFlow: vi.fn(),
 }));
 
-import { App } from './App.js';
+import { App, deriveWorkflowSteps } from './App.js';
 import {
   ApiError,
   explainFlow,
@@ -903,6 +903,74 @@ describe('App — Issue \u2194 Graph selection', () => {
     const trigger = getGraphNode('trigger');
     // The new flow has only a trigger node; it should not be dimmed (no selection).
     expect(trigger.style.opacity === '' || trigger.style.opacity === '1').toBe(true);
+  });
+});
+
+describe('deriveWorkflowSteps — state machine', () => {
+  // Pure-function snapshot of the stepper state machine. Cheaper and more
+  // exhaustive than going through the full <App /> render path, and pinned
+  // here so a refactor of App.handleSubmit / handleOpenChatbot can't
+  // silently break the visual progression.
+  const idle = { kind: 'idle' as const };
+  const generating = { kind: 'generating' as const };
+  const error = {
+    kind: 'error' as const,
+    error: { code: 'X', message: 'boom', status: 500 },
+  };
+  const ready = { kind: 'ready' as const, flow: buildFlow() };
+
+  it('at idle: only Describe is active', () => {
+    expect(deriveWorkflowSteps(idle, false).map((s) => s.state)).toEqual([
+      'active',
+      'pending',
+      'pending',
+    ]);
+  });
+
+  it('while generating: still on Describe (the LLM call is part of step 1)', () => {
+    expect(deriveWorkflowSteps(generating, false).map((s) => s.state)).toEqual([
+      'active',
+      'pending',
+      'pending',
+    ]);
+  });
+
+  it('on generation error: stays on Describe (user must fix and retry)', () => {
+    expect(deriveWorkflowSteps(error, false).map((s) => s.state)).toEqual([
+      'active',
+      'pending',
+      'pending',
+    ]);
+  });
+
+  it('when ready and widget closed: Describe done, Flow active', () => {
+    expect(deriveWorkflowSteps(ready, false).map((s) => s.state)).toEqual([
+      'done',
+      'active',
+      'pending',
+    ]);
+  });
+
+  it('when ready and widget open: Describe + Flow done, Test active', () => {
+    expect(deriveWorkflowSteps(ready, true).map((s) => s.state)).toEqual([
+      'done',
+      'done',
+      'active',
+    ]);
+  });
+
+  it('uses stable labels (Describe / Flow / Test) regardless of state', () => {
+    // Labels must not change as state advances — otherwise users would see
+    // the step names shift under their feet, which is disorienting.
+    for (const status of [idle, generating, error, ready] as const) {
+      for (const simOpen of [false, true]) {
+        expect(deriveWorkflowSteps(status, simOpen).map((s) => s.label)).toEqual([
+          'Describe',
+          'Flow',
+          'Test',
+        ]);
+      }
+    }
   });
 });
 

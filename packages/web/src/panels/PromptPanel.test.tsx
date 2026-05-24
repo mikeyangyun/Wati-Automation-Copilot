@@ -142,6 +142,37 @@ describe('PromptPanel', () => {
     expect(document.querySelector('.prompt-charcount')!.textContent).toContain('11');
   });
 
+  it('surfaces a separate slow-prompt warning row when the soft limit is exceeded', () => {
+    const long = 'a'.repeat(420);
+    const { container, rerender } = render(
+      <PromptPanel
+        prompt={long}
+        onPromptChange={() => {}}
+        onSubmit={() => {}}
+        isGenerating={false}
+      />,
+    );
+    // The warning row is separate from the absolutely-positioned counter
+    // chip — that's the fix for the layout bug where long warning text
+    // wrapped into the starter cards below.
+    const warn = container.querySelector('.prompt-charwarn');
+    expect(warn).not.toBeNull();
+    expect(warn!.textContent).toMatch(/long prompts/i);
+    // The compact counter stays as a number-only chip.
+    expect(container.querySelector('.prompt-charcount')!.textContent).toMatch(/^\d+$/);
+
+    // And disappears once the user trims back under the limit.
+    rerender(
+      <PromptPanel
+        prompt="short"
+        onPromptChange={() => {}}
+        onSubmit={() => {}}
+        isGenerating={false}
+      />,
+    );
+    expect(container.querySelector('.prompt-charwarn')).toBeNull();
+  });
+
   it('marks the field as busy while a generation is in flight', () => {
     const { container } = render(
       <PromptPanel
