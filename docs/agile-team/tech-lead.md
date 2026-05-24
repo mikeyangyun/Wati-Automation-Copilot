@@ -16,21 +16,26 @@ Within constraints, convert requirements into **executable dev slices**: stack a
 
 ```markdown
 ## Technical overview
+
 - Packages: `shared` | `server` | `web`
 - Modules: routes, agents, validator, executor, store, llm (see [README.md](../../README.md))
 
 ## Slices (dev order)
-| ID | Slice | Linked AC | Risk |
-|----|-------|-----------|------|
-| T1 | ... | AC1 | ... |
+
+| ID  | Slice | Linked AC | Risk |
+| --- | ----- | --------- | ---- |
+| T1  | ...   | AC1       | ...  |
 
 ## Data & contracts (brief)
+
 - ...
 
 ## Dependencies / spikes
+
 - ...
 
 ## Done mapping
+
 - AC1 → T1 + ...
 ```
 

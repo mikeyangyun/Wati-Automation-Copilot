@@ -24,24 +24,30 @@ Unless the user explicitly expands scope, mark these **Out of scope**:
 
 ```markdown
 ## User story
+
 - ...
 
 ## In scope
+
 - ...
 
 ## Out of scope
+
 - ...
 
 ## Acceptance criteria (AC)
+
 1. Given ... When ... Then ...
 2. ...
 
 ## Priority
+
 - Must: ...
 - Should: ...
 - Could: ...
 
 ## Assumptions & open questions
+
 - ...
 ```
 

@@ -16,15 +16,19 @@ Ship **thin vertical slices per TL plan**: readable, runnable, demoable with con
 
 ```markdown
 ## Slice complete
+
 - ID: T...
 
 ## Summary (≤3 bullets)
+
 - ...
 
 ## How to verify locally
+
 1. ...
 
 ## Known limitations
+
 - ...
 ```
 

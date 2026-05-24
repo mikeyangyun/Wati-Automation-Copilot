@@ -94,7 +94,7 @@ Same prompt as B, but now **revise** it to fix the gap:
 - **Schema as the contract.** One Zod type (`Flow`) generates TypeScript types for the server, the web app, and the LLM output parser. Drift between layers becomes a compile error.
 - **LLM-free invariants.** `executor/` and `validator/` cannot import from `llm/` — ESLint blocks it. That's how we keep "simulation is deterministic" honest.
 - **Provider-agnostic LLM.** Vendor lives behind `LLMProvider`. Swapping to OpenAI is a 30-line adapter and a config change.
-- **Test coverage.** 561 automated tests across `shared / server / web` (73 + 225 + 263), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
+- **Test coverage.** 563 automated tests across `shared / server / web` (73 + 225 + 265), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
 
 ---
 

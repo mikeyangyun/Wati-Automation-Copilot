@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FLOW_EDGE_TYPES,
+  MAX_HALF_BAND_PX,
   STAGGER_STEP,
   computeStaggerOffsetY,
   shouldRenderLabel,
@@ -64,6 +65,29 @@ describe('computeStaggerOffsetY', () => {
           computeStaggerOffsetY(i - 1, count),
         );
       }
+    }
+  });
+
+  it('keeps the natural step (no compression) for ≤ 5 siblings — the common case', () => {
+    // 5 siblings → outer index 4 → (4 - 2) × STAGGER_STEP = 2 × STAGGER_STEP
+    // = 44 px. That's within MAX_HALF_BAND_PX (56), so no compression
+    // should kick in; the step stays at STAGGER_STEP.
+    expect(computeStaggerOffsetY(0, 5)).toBe(-2 * STAGGER_STEP);
+    expect(computeStaggerOffsetY(4, 5)).toBe(2 * STAGGER_STEP);
+  });
+
+  it('compresses the step when too many siblings would otherwise spill past MAX_HALF_BAND_PX', () => {
+    // 14 siblings (a pathological fan-out) would, at the natural step,
+    // place the outer label at 6.5 × STAGGER_STEP = 143 px from the
+    // midpoint — well past the rank boundary. The cap shrinks the step
+    // so the band stays within ±MAX_HALF_BAND_PX even in this case.
+    const lastOffset = computeStaggerOffsetY(13, 14);
+    expect(Math.abs(lastOffset)).toBeLessThanOrEqual(MAX_HALF_BAND_PX);
+    // Symmetry: the opposite index has the negative offset.
+    expect(computeStaggerOffsetY(0, 14)).toBe(-lastOffset);
+    // And monotonicity still holds in the compressed regime.
+    for (let i = 1; i < 14; i += 1) {
+      expect(computeStaggerOffsetY(i, 14)).toBeGreaterThan(computeStaggerOffsetY(i - 1, 14));
     }
   });
 });

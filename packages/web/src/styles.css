@@ -1790,6 +1790,47 @@ body {
   background: #fbfaff;
 }
 
+/* ---------- Edge labels (StaggeredEdge custom edge) ---------- */
+
+/* Compact, ellipsis-truncated pill rendered at the staggered position
+ * computed in `StaggeredEdge.tsx`. The `position: absolute` + `translate`
+ * is set inline by the component (it interpolates the live React Flow
+ * coordinates); everything else lives here so designers have a single
+ * tuning surface.
+ *
+ * Sizing notes:
+ *   - font-size 10.5 + line-height 1.2 + 2 × 2 px padding + 2 × 1 px
+ *     border = ~19 px total height. STAGGER_STEP (22 px) > 19, so adjacent
+ *     siblings can never touch even when the band is at its tightest.
+ *   - max-width 140 px caps wide labels ("Subscription change", etc.)
+ *     so they can't dominate a sibling cluster. The full text is in
+ *     `title` for hover discoverability.
+ */
+.rf-edge-label {
+  position: absolute;
+  pointer-events: all;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+/* Fallback edges visually de-emphasised — the dashed line on the edge
+ * itself (set inline by the component) gets a matching label treatment:
+ * slightly transparent + lighter weight so primary branches read first. */
+.rf-edge-label-fallback {
+  opacity: 0.9;
+  font-weight: 500;
+}
+
 /* ---------- Node cards (Wati-style: colored header + per-type body) ---------- */
 
 .node-card {

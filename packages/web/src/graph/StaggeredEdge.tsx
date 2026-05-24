@@ -20,28 +20,56 @@ export interface StaggeredEdgeData {
 }
 
 /**
- * Vertical pixel step between adjacent sibling label boxes. Chosen so a
- * single line of edge text (font-size 11, padding ~2 px → ~17 px tall)
- * has visible breathing room between rows: 14 px keeps adjacent slots
- * non-overlapping while still feeling tightly grouped on the edge.
+ * Vertical pixel step between adjacent sibling label boxes. Sized to be
+ * strictly larger than a rendered label's height so adjacent slots cannot
+ * visually overlap:
+ *   font-size 10.5 + line-height ~1.2 → ~13 px text
+ *   + 2 × 2 px padding (top/bottom) + 2 × 1 px border = ~19 px total
+ * 22 px leaves a ~3 px gap between rows — tight, but unambiguously
+ * non-overlapping at any zoom level.
+ *
+ * The previous value (14 px) was smaller than label height, which is
+ * exactly the visible "labels piled into a stripe" regression the user
+ * caught on a high-fan-out flow.
  */
-export const STAGGER_STEP = 14;
+export const STAGGER_STEP = 22;
+
+/**
+ * Maximum half-band the stagger may occupy on either side of the geometric
+ * midpoint. Kept below `RANK_SEP / 2 - card-margin` so labels never spill
+ * across rank boundaries even when a source has many outgoing edges.
+ */
+export const MAX_HALF_BAND_PX = 56;
 
 /**
  * Pure helper: how many pixels above (negative) or below (positive) the
  * geometric midpoint a label should sit, given its position among its
  * source's outgoing edges.
  *
+ * Behaviour:
+ *   - 1 sibling: offset 0 (sits on the midpoint).
+ *   - 2–N siblings ≤ "natural" capacity: offsets are
+ *     (siblingIndex − centre) × STAGGER_STEP, symmetric around the
+ *     midpoint and guaranteed non-overlapping (step > label height).
+ *   - Pathological fan-out (so many siblings that
+ *     STAGGER_STEP × (count − 1) would exceed 2 × MAX_HALF_BAND_PX):
+ *     the step is compressed so the whole band stays inside
+ *     ±MAX_HALF_BAND_PX. In that degenerate case adjacent labels start
+ *     to overlap — the underlying flow is over-branched and should be
+ *     simplified — but at least we don't bleed into the neighbouring
+ *     rank's cards. Reviewers see the issue, not a layout explosion.
+ *
  * Extracted so it can be unit-tested directly — React Flow's edge paths
  * are not rendered in happy-dom (path math requires a real layout), so
  * we test the math here rather than via DOM scraping.
  */
 export function computeStaggerOffsetY(siblingIndex: number, siblingCount: number): number {
-  // Single sibling sits exactly on the midpoint (offset 0). Multiple
-  // siblings are centred symmetrically around it: 4 edges → offsets
-  // [-1.5, -0.5, 0.5, 1.5] × STAGGER_STEP = [-21, -7, 7, 21].
+  if (siblingCount <= 1) return 0;
   const centre = (siblingCount - 1) / 2;
-  return (siblingIndex - centre) * STAGGER_STEP;
+  // Per-step room when distributing siblingCount labels into the band.
+  const compressedStep = (MAX_HALF_BAND_PX * 2) / (siblingCount - 1);
+  const step = Math.min(STAGGER_STEP, compressedStep);
+  return (siblingIndex - centre) * step;
 }
 
 /**
@@ -125,20 +153,13 @@ export function StaggeredEdge({
           <div
             className={`rf-edge-label${isFallback ? ' rf-edge-label-fallback' : ''}`}
             data-testid={`edge-label-${id}`}
+            // `title` is the accessible "full text on hover" fallback for the
+            // CSS ellipsis truncation we apply to long branch labels.
+            title={label}
             style={{
-              position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffsetY}px)`,
-              pointerEvents: 'all',
-              background: '#ffffff',
-              border: `1px solid ${color}`,
-              borderRadius: 4,
-              padding: '2px 6px',
-              fontSize: 11,
-              fontWeight: 600,
+              borderColor: color,
               color,
-              whiteSpace: 'nowrap',
-              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
-              ...(isFallback ? { opacity: 0.9, fontWeight: 500 } : {}),
             }}
           >
             {label}

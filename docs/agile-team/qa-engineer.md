@@ -16,21 +16,26 @@ Before sign-off, run **structured checks** over main flows and high-risk edges t
 
 ```markdown
 ## AC checklist
-| AC | Result | Notes |
-|----|--------|-------|
-| AC1 | Pass/Fail | ... |
+
+| AC  | Result    | Notes |
+| --- | --------- | ----- |
+| AC1 | Pass/Fail | ...   |
 
 ## Smoke checklist (manual)
+
 - [ ] ...
 - [ ] ...
 
 ## Edge / negative cases
+
 - ...
 
 ## Issues (if any)
+
 1. ...
 
 ## Ship recommendation
+
 - Demo-ready / Fix first / Blocking ...
 ```
 
