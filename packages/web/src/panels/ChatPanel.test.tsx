@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest';
 
-import type { Session } from 'shared';
+import type { Flow, Session } from 'shared';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -114,8 +114,8 @@ describe('ChatPanel', () => {
     expect(screen.getByLabelText(/reply input/i)).toBeDisabled();
   });
 
-  it('renders an events disclosure with branch + handoff lines when events are present', () => {
-    const status: SimulationStatus = {
+  describe('debug toggle (designer-only step trace)', () => {
+    const eventStatus = (): SimulationStatus => ({
       kind: 'active',
       envelope: buildEnvelope({
         events: [
@@ -123,13 +123,139 @@ describe('ChatPanel', () => {
           { type: 'handoff', nodeId: 'n_buy', team: 'Sales' },
         ],
       }),
-    };
-    render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
-    const events = screen.getByTestId('chat-events');
-    expect(events).toHaveTextContent(/branch/i);
-    expect(events).toHaveTextContent('n1 → n_buy');
-    expect(events).toHaveTextContent(/handoff/i);
-    expect(events).toHaveTextContent('Sales');
+    });
+
+    it('hides the step trace by default even when events are present', () => {
+      render(<ChatPanel status={eventStatus()} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-events')).not.toBeInTheDocument();
+    });
+
+    it('exposes a Debug toggle with aria-pressed=false initially', () => {
+      render(<ChatPanel status={eventStatus()} onStep={vi.fn()} onReset={vi.fn()} />);
+      const toggle = screen.getByTestId('chat-debug-toggle');
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('reveals the step trace with branch + handoff lines after toggling Debug on', async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel status={eventStatus()} onStep={vi.fn()} onReset={vi.fn()} />);
+      await user.click(screen.getByTestId('chat-debug-toggle'));
+
+      const events = screen.getByTestId('chat-events');
+      expect(events).toHaveTextContent(/branch/i);
+      expect(events).toHaveTextContent('n1 → n_buy');
+      expect(events).toHaveTextContent(/handoff/i);
+      expect(events).toHaveTextContent('Sales');
+      // Designer-view label reminds operators that end-users never see this.
+      expect(events).toHaveTextContent(/designer view/i);
+      expect(screen.getByTestId('chat-debug-toggle')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('hides the trace again when Debug is toggled off', async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel status={eventStatus()} onStep={vi.fn()} onReset={vi.fn()} />);
+      const toggle = screen.getByTestId('chat-debug-toggle');
+      await user.click(toggle);
+      expect(screen.getByTestId('chat-events')).toBeInTheDocument();
+      await user.click(toggle);
+      expect(screen.queryByTestId('chat-events')).not.toBeInTheDocument();
+    });
+
+    it('does not render the Debug toggle when no simulation is active', () => {
+      render(<ChatPanel status={{ kind: 'inactive' }} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-debug-toggle')).not.toBeInTheDocument();
+    });
+
+    it('keeps the trace hidden once toggled on if the executor produced zero events', async () => {
+      const user = userEvent.setup();
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({ events: [] }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      await user.click(screen.getByTestId('chat-debug-toggle'));
+      // Debug is on, but no events to show — the disclosure stays absent so the
+      // designer doesn't see an empty "trace" header.
+      expect(screen.queryByTestId('chat-events')).not.toBeInTheDocument();
+    });
+
+    it('renders node labels from the flow instead of raw IDs when flow is provided', async () => {
+      const user = userEvent.setup();
+      const flow: Flow = {
+        id: 'flow_1',
+        name: 'Support routing',
+        prompt: 'test',
+        trigger: { type: 'new_message' },
+        entryNodeId: 'n0',
+        nodes: [
+          { id: 'n0', type: 'trigger', label: 'Trigger', config: {} },
+          { id: 'n1', type: 'ask_question', label: 'Ask department', config: { text: 'Which?' } },
+          {
+            id: 'n2',
+            type: 'assign_to_team',
+            label: 'Billing Team handoff',
+            config: { team: 'Billing' },
+          },
+        ],
+        edges: [],
+        createdAt: '2026-05-24T00:00:00.000Z',
+      };
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          events: [
+            { type: 'branch', from: 'n1', to: 'n2', condition: 'Billing' },
+            { type: 'handoff', nodeId: 'n2', team: 'Billing' },
+          ],
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} flow={flow} />);
+      await user.click(screen.getByTestId('chat-debug-toggle'));
+
+      const events = screen.getByTestId('chat-events');
+      // Labels are visible to the reader…
+      expect(events).toHaveTextContent('Ask department');
+      expect(events).toHaveTextContent('Billing Team handoff');
+      // …and the raw IDs are NOT what the user reads — they only live in the
+      // hover-tooltip title attribute. So neither "n1" nor "n2" should appear
+      // anywhere except inside a `title` (which `toHaveTextContent` excludes).
+      expect(events).not.toHaveTextContent(/\bn1\b/);
+      expect(events).not.toHaveTextContent(/\bn2\b/);
+      // Tooltip carries id + type for designers who need the raw reference.
+      const noderefs = events.querySelectorAll('.event-noderef');
+      expect(noderefs.length).toBeGreaterThan(0);
+      const titles = Array.from(noderefs).map((n) => n.getAttribute('title') ?? '');
+      expect(titles.some((t) => t.includes('n1') && t.includes('ask_question'))).toBe(true);
+      expect(titles.some((t) => t.includes('n2') && t.includes('assign_to_team'))).toBe(true);
+    });
+
+    it('falls back to the raw node ID when the matching label is empty', async () => {
+      const user = userEvent.setup();
+      const flow: Flow = {
+        id: 'flow_1',
+        name: 'flow',
+        prompt: 'test',
+        trigger: { type: 'new_message' },
+        entryNodeId: 'n0',
+        nodes: [
+          { id: 'n0', type: 'trigger', label: 'Trigger', config: {} },
+          // Whitespace-only label is treated as missing — we'd rather show the
+          // ID than a blank in the trace.
+          { id: 'n1', type: 'ask_question', label: '   ', config: { text: 'q' } },
+        ],
+        edges: [],
+        createdAt: '2026-05-24T00:00:00.000Z',
+      };
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          events: [{ type: 'fallback', nodeId: 'n1', reason: 'unmatched reply' }],
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} flow={flow} />);
+      await user.click(screen.getByTestId('chat-debug-toggle'));
+      expect(screen.getByTestId('chat-events')).toHaveTextContent(/\bn1\b/);
+    });
   });
 
   it('invokes onReset when the Reset button is clicked', async () => {

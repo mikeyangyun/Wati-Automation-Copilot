@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { AwaitingInput, Message, SimulationEvent } from 'shared';
+import type { AwaitingInput, Flow, Message, SimulationEvent } from 'shared';
 
 import type { SessionEnvelope } from '../api.js';
 import type { AppErrorSummary, SimulationStatus } from '../state.js';
@@ -8,25 +8,53 @@ export interface ChatPanelProps {
   status: SimulationStatus;
   onStep: (message: string) => void;
   onReset: () => void;
+  /**
+   * Optional currently-generated flow. Used purely to resolve node IDs in the
+   * debug step trace to human-readable labels — designers shouldn't need to
+   * memorise that `n3` is the "Billing sub-issue" question. Falls back to the
+   * raw ID when the flow isn't available.
+   */
+  flow?: Flow;
 }
 
-export function ChatPanel({ status, onStep, onReset }: ChatPanelProps) {
+export function ChatPanel({ status, onStep, onReset, flow }: ChatPanelProps) {
+  // Debug toggle defaults to OFF so the chat panel reads like a real WhatsApp
+  // preview. Designers can opt in to see the executor's step trace (which
+  // branch was taken, which fallback fired, etc.). End-users of the live bot
+  // never see this — it only exists in the simulator's envelope.
+  const [debug, setDebug] = useState(false);
+  const active = status.kind === 'active';
+
   return (
     <section className="panel chat-panel" aria-label="Mock chat">
       <header className="chat-header">
         <h2>Chat</h2>
-        {status.kind === 'active' && (
-          <button
-            type="button"
-            className="chat-reset"
-            onClick={onReset}
-            disabled={status.pending !== undefined}
-          >
-            Reset
-          </button>
+        {active && (
+          <div className="chat-header-actions">
+            <button
+              type="button"
+              className={`chat-debug-toggle${debug ? ' chat-debug-toggle-on' : ''}`}
+              onClick={() => setDebug((d) => !d)}
+              aria-pressed={debug}
+              aria-label="Toggle flow trace (designer view)"
+              title="Show the step trace — only visible in this simulator, never sent to end-users."
+              data-testid="chat-debug-toggle"
+            >
+              <span className="chat-debug-dot" aria-hidden="true" />
+              Debug
+            </button>
+            <button
+              type="button"
+              className="chat-reset"
+              onClick={onReset}
+              disabled={status.pending !== undefined}
+            >
+              Reset
+            </button>
+          </div>
         )}
       </header>
-      <ChatPanelBody status={status} onStep={onStep} />
+      <ChatPanelBody status={status} onStep={onStep} debug={debug} flow={flow} />
     </section>
   );
 }
@@ -34,9 +62,13 @@ export function ChatPanel({ status, onStep, onReset }: ChatPanelProps) {
 function ChatPanelBody({
   status,
   onStep,
+  debug,
+  flow,
 }: {
   status: SimulationStatus;
   onStep: (message: string) => void;
+  debug: boolean;
+  flow?: Flow;
 }) {
   switch (status.kind) {
     case 'inactive':
@@ -61,6 +93,8 @@ function ChatPanelBody({
           pending={status.pending}
           lastError={status.lastError}
           onStep={onStep}
+          debug={debug}
+          flow={flow}
         />
       );
   }
@@ -71,11 +105,15 @@ function ActiveChat({
   pending,
   lastError,
   onStep,
+  debug,
+  flow,
 }: {
   envelope: SessionEnvelope;
   pending: 'step' | 'reset' | undefined;
   lastError: AppErrorSummary | undefined;
   onStep: (message: string) => void;
+  debug: boolean;
+  flow?: Flow;
 }) {
   const [draft, setDraft] = useState('');
   const terminal =
@@ -118,13 +156,16 @@ function ActiveChat({
         )}
       </ul>
 
-      {envelope.events.length > 0 && (
-        <details className="chat-events" data-testid="chat-events">
-          <summary>Last step trace ({envelope.events.length})</summary>
+      {debug && envelope.events.length > 0 && (
+        <details className="chat-events" data-testid="chat-events" open>
+          <summary>
+            Last step trace ({envelope.events.length})
+            <span className="chat-events-hint">designer view · hidden from end-users</span>
+          </summary>
           <ul>
             {envelope.events.map((event, idx) => (
               <li key={idx}>
-                <EventLine event={event} />
+                <EventLine event={event} flow={flow} />
               </li>
             ))}
           </ul>
@@ -227,39 +268,70 @@ function formatBubbleTime(iso: string): string {
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function EventLine({ event }: { event: SimulationEvent }) {
+/**
+ * Renders a single step-trace event. When a flow is provided, node IDs are
+ * replaced with their human-readable `label` so a non-engineer can follow
+ * "Ask department → Billing sub-issue" instead of "n2 → n3". The raw ID and
+ * node type are still surfaced via the `title` attribute for hover-debugging.
+ */
+function EventLine({ event, flow }: { event: SimulationEvent; flow?: Flow }) {
+  const nodeById = new Map(flow?.nodes.map((n) => [n.id, n]) ?? []);
+  const labelOf = (id: string): string => {
+    const node = nodeById.get(id);
+    return node?.label && node.label.trim().length > 0 ? node.label : id;
+  };
+  const titleOf = (id: string): string => {
+    const node = nodeById.get(id);
+    return node ? `${id} · ${node.type}` : id;
+  };
+
+  const NodeRef = ({ id }: { id: string }) => (
+    <span className="event-noderef" title={titleOf(id)}>
+      {labelOf(id)}
+    </span>
+  );
+
   switch (event.type) {
     case 'branch':
       return (
         <span>
-          <code className="event-tag event-branch">branch</code> {event.from} → {event.to}
-          {event.condition !== undefined ? ` (on "${event.condition}")` : ''}
+          <code className="event-tag event-branch">branch</code> <NodeRef id={event.from} />
+          {' → '}
+          <NodeRef id={event.to} />
+          {event.condition !== undefined ? (
+            <>
+              {' on '}
+              <strong>&quot;{event.condition}&quot;</strong>
+            </>
+          ) : null}
         </span>
       );
     case 'fallback':
       return (
         <span>
-          <code className="event-tag event-fallback">fallback</code> {event.nodeId}: {event.reason}
+          <code className="event-tag event-fallback">fallback</code> at{' '}
+          <NodeRef id={event.nodeId} /> — {event.reason}
         </span>
       );
     case 'retry':
       return (
         <span>
-          <code className="event-tag event-retry">retry</code> {event.nodeId} (×{event.count})
+          <code className="event-tag event-retry">retry</code> at <NodeRef id={event.nodeId} /> (×
+          {event.count})
         </span>
       );
     case 'mock-api-call':
       return (
         <span>
-          <code className="event-tag event-api">mock api</code> {event.nodeId}
+          <code className="event-tag event-api">mock api</code> at <NodeRef id={event.nodeId} />
           {event.url !== undefined ? ` → ${event.url}` : ''}
         </span>
       );
     case 'handoff':
       return (
         <span>
-          <code className="event-tag event-handoff">handoff</code> {event.nodeId} → team{' '}
-          <strong>{event.team}</strong>
+          <code className="event-tag event-handoff">handoff</code> at <NodeRef id={event.nodeId} />{' '}
+          → team <strong>{event.team}</strong>
         </span>
       );
   }

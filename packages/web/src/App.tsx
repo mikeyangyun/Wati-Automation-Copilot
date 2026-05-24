@@ -262,7 +262,12 @@ export function App() {
           selectedIssueIndex={selectedIssueIndex}
           onSelectIssue={setSelectedIssueIndex}
         />
-        <ChatPanel status={simStatus} onStep={handleStep} onReset={handleReset} />
+        <ChatPanel
+          status={simStatus}
+          onStep={handleStep}
+          onReset={handleReset}
+          {...(status.kind === 'ready' ? { flow: status.flow } : {})}
+        />
       </main>
     </div>
   );

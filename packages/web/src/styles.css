@@ -802,6 +802,12 @@ body {
   color: var(--muted);
 }
 
+.chat-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .chat-reset {
   font: inherit;
   font-size: 12px;
@@ -816,6 +822,66 @@ body {
 .chat-reset:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Designer-only debug toggle. Off by default so the chat panel reads as a
+ * faithful WhatsApp preview; flipping it on reveals the step trace that
+ * shows which branch/handoff fired during the last step. */
+.chat-debug-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 9px 4px 7px;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.chat-debug-toggle:hover:not(:disabled) {
+  border-color: var(--prompt-accent);
+  color: var(--text);
+}
+
+.chat-debug-toggle-on {
+  background: var(--prompt-accent-soft);
+  border-color: var(--prompt-accent-2);
+  color: var(--prompt-accent-2);
+}
+
+.chat-debug-toggle:focus-visible {
+  outline: 2px solid var(--prompt-accent);
+  outline-offset: 2px;
+}
+
+.chat-debug-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c5c5c5;
+  transition: background 120ms ease;
+}
+
+.chat-debug-toggle-on .chat-debug-dot {
+  background: var(--prompt-accent-2);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.18);
+}
+
+.chat-events-hint {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-top: 1px;
 }
 
 .chat-transcript {
@@ -980,6 +1046,21 @@ body {
   margin-right: 6px;
   background: #e5e5e5;
   color: var(--text);
+}
+
+/* Human-readable node label inside a trace line. Slight emphasis (medium
+ * weight + subtle underline on hover) so designers can spot which clauses
+ * refer to nodes vs. literal user input. Falls back gracefully when the
+ * flow isn't available — in that case the raw id (e.g. "n3") is shown. */
+.event-noderef {
+  font-weight: 500;
+  color: var(--text);
+  border-bottom: 1px dashed transparent;
+  cursor: help;
+}
+
+.event-noderef:hover {
+  border-bottom-color: var(--muted);
 }
 
 .event-branch {
