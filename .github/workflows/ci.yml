@@ -32,6 +32,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Node 22 ships Corepack on by default. When the repo has a
+      # `packageManager` field in package.json, Corepack races with
+      # `pnpm/action-setup` over which pnpm binary should be on PATH —
+      # the failure mode is `pnpm install` exiting in seconds with an
+      # opaque error. Disabling Corepack makes pnpm/action-setup the
+      # single source of truth.
+      - name: Disable Corepack
+        run: corepack disable
+        continue-on-error: true
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -41,7 +51,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+
+      # Manual pnpm store cache — setup-node@v4's `cache: pnpm` had
+      # inconsistent path resolution with Corepack and was disabled by
+      # default in setup-node v5. We replicate the same intent with an
+      # explicit cache step keyed off the lockfile hash.
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
