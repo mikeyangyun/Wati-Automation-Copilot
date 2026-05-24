@@ -11,25 +11,32 @@ interface StarterPrompt {
 
 const STARTERS: ReadonlyArray<StarterPrompt> = [
   {
-    icon: '🛒',
-    title: 'Buyer / Seller routing',
-    summary: 'Branch new contacts to sales or support based on who they are.',
+    icon: '🍕',
+    title: 'Restaurant ordering menu',
+    summary: 'Pick a category, then a dish, then collect the address and post the order.',
     prompt:
-      'When a new contact messages us, ask if they are a buyer or seller. Route buyers to the sales team and sellers to support.',
+      'When a contact messages, greet them and present these categories as a list: Pizza, Pasta, Salads, Drinks. Based on their choice, show 3 popular items in that category and ask which one they want. After they pick a dish, ask for their delivery address, confirm the order back to them, and POST the order details to https://example.com/orders.',
   },
   {
-    icon: '💬',
-    title: 'Support keyword handoff',
-    summary: 'Triggered by the word "support", collect intent and assign a team.',
+    icon: '🎧',
+    title: 'Tiered support routing',
+    summary: 'Department menu → sub-issue menu → assign the right team.',
     prompt:
-      'When someone sends "support", ask what they need help with, then assign the chat to the support team.',
+      'When a contact sends "help", greet them and offer these departments as a list: Billing, Technical Support, Sales, General Inquiry. If they pick Billing, follow up with sub-options: Refund, Wrong charge, Subscription change, then assign to the billing team. If they pick Technical Support, follow up with: Login issue, Bug report, Feature question, then assign to the support team. Otherwise route to a human agent.',
   },
   {
-    icon: '🔗',
-    title: 'Lead capture via API',
-    summary: 'Ask for an email, then POST it to a downstream system.',
+    icon: '📅',
+    title: 'Appointment booking',
+    summary: 'Service → preferred day → time slot → save via API and confirm.',
     prompt:
-      'When a contact messages, ask for their email address, then save it via an API call to https://example.com/leads.',
+      'When a contact wants to book, ask which service from this list: Haircut, Coloring, Treatment, Consultation. Then ask which day they prefer from: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday. Then ask their preferred time slot from: Morning, Afternoon, Evening. Save the booking by calling https://example.com/bookings and reply with a confirmation message.',
+  },
+  {
+    icon: '🛡️',
+    title: 'Insurance quote intake',
+    summary: 'Product type → vehicle/property subtype → age band → submit lead.',
+    prompt:
+      'When a contact messages, ask which insurance product they need from: Auto, Home, Health, Life. If they pick Auto, follow up with: Sedan, SUV, Truck, Motorcycle. If they pick Home, follow up with: House, Apartment, Condo. Then ask their age range from: 18-25, 26-40, 41-60, 60+. Finally save their details by POSTing to https://example.com/quotes and assign the chat to a sales agent.',
   },
 ];
 
@@ -62,7 +69,7 @@ export function PromptPanel({ prompt, onPromptChange, onSubmit, isGenerating }: 
         <textarea
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder="e.g. When a new contact messages, ask if they are a buyer or seller, then route to the right team…"
+          placeholder="e.g. When a contact messages, show a menu of Pizza / Pasta / Salads / Drinks, then ask for their pick…"
           rows={6}
           aria-label="prompt input"
           disabled={isGenerating}
