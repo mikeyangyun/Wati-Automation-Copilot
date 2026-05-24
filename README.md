@@ -235,22 +235,36 @@ Scope cuts that were deliberate, not oversights:
 
 All settings come from environment variables, parsed once at boot by a single typed `config` module in `packages/server`. The process fails fast on missing required values; nothing else in the code reads `process.env` directly (see Design Principle 6).
 
-| Variable               | Default                 | Required                                                | Description                                                                                                                 |
-| ---------------------- | ----------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load. Implemented: `deepseek`, `mock`. Adding a vendor is a new case in `createLLMProvider`. |
-| `LLM_MODEL`            | `deepseek-v4-pro`       | no                                                      | Heavy / quality model. Used by Generate (FlowAgent) and Review (ReviewAgent.review).                                        |
-| `LLM_FAST_MODEL`       | (reuses `LLM_MODEL`)    | no                                                      | Fast / cheap model. Used by Explain (ReviewAgent.explain). Set to e.g. `deepseek-v4-flash` to split routing.                |
-| `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser**                                                    |
-| `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                                                                      |
-| `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                                                                        |
-| `LLM_MAX_RETRY`        | `1`                     | no                                                      | Retries when LLM output fails Zod schema parsing                                                                            |
-| `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                                                                           |
-| `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                                                                           |
-| `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                                                                          |
-| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin(s). Comma-separated; trailing slashes stripped automatically (browser `Origin` is bare host).            |
-| `NODE_ENV`             | `development`           | no                                                      | `development`, `test`, or `production`. `test` exempts `LLM_API_KEY` from being required.                                   |
+| Variable               | Default                 | Required                                                | Description                                                                                                                                                                                                          |
+| ---------------------- | ----------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load. Implemented: `deepseek`, `mock`. Adding a vendor is a new case in `createLLMProvider`.                                                                                          |
+| `LLM_MODEL`            | `deepseek-chat`         | no                                                      | Generate (FlowAgent) + Review (ReviewAgent.review). **Avoid reasoning models** (`deepseek-v4-pro`, `deepseek-reasoner`) — they burn 1500+ "thinking" tokens per call → 10× latency + truncated JSON. See note below. |
+| `LLM_FAST_MODEL`       | (reuses `LLM_MODEL`)    | no                                                      | Explain (ReviewAgent.explain). Default reuses `LLM_MODEL` — `deepseek-chat` handles markdown summarisation fine on its own.                                                                                          |
+| `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser**                                                                                                                                             |
+| `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                                                                                                                                                               |
+| `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                                                                                                                                                                 |
+| `LLM_MAX_RETRY`        | `1`                     | no                                                      | Retries when LLM output fails Zod schema parsing                                                                                                                                                                     |
+| `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                                                                                                                                                                    |
+| `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                                                                                                                                                                    |
+| `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                                                                                                                                                                   |
+| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin(s). Comma-separated; trailing slashes stripped automatically (browser `Origin` is bare host).                                                                                                     |
+| `NODE_ENV`             | `development`           | no                                                      | `development`, `test`, or `production`. `test` exempts `LLM_API_KEY` from being required.                                                                                                                            |
 
 A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
+
+### Model selection (the reasoning-model trap)
+
+DeepSeek's V4 family splits into two flavours that share the same API but differ **~10× in latency** on a structured-output task like ours:
+
+| Model id (env)      | Reasoning tokens / call | Generate latency (measured) | Use for                             |
+| ------------------- | ----------------------- | --------------------------- | ----------------------------------- |
+| `deepseek-chat`     | 0                       | **~3–8 s**                  | **Default — what this repo ships.** |
+| `deepseek-v4-pro`   | ~1500–2000              | **~40 s** + JSON truncation | Reasoning research, not us.         |
+| `deepseek-reasoner` | ~1500+                  | Similar to v4-pro           | Same — avoid.                       |
+
+The reasoning variants behave like OpenAI o1 — they "think" silently before emitting any visible content. Those internal tokens count against `max_tokens`, so on a JSON-out task the model often runs out of budget mid-string and produces something like `… "from": "n1", "` (unterminated) — which Zod then rejects, the agent retries, and the whole loop blows past `LLM_TIMEOUT_MS` for no quality gain.
+
+`DeepSeekProvider` defensively logs every response's `finish_reason` and `reasoning_tokens`; a non-zero `reasoning_tokens` triggers a warn (`llm model emitted reasoning_tokens — wasted latency on a structured-output task`) so an accidental env swap is visible in the first request, not a frustrated bug report.
 
 ---
 
