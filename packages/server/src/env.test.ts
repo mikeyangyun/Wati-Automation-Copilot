@@ -9,10 +9,22 @@ describe('parseEnv — defaults and coercion', () => {
     expect(env.LOG_LEVEL).toBe('info');
     expect(env.CORS_ORIGIN).toBe('http://localhost:5173');
     expect(env.LLM_PROVIDER).toBe('deepseek');
-    expect(env.LLM_MODEL).toBe('deepseek-chat');
+    expect(env.LLM_MODEL).toBe('deepseek-v4-pro');
+    // LLM_FAST_MODEL has no default — undefined means "reuse LLM_MODEL".
+    expect(env.LLM_FAST_MODEL).toBeUndefined();
     expect(env.LLM_TIMEOUT_MS).toBe(30_000);
     expect(env.LLM_MAX_RETRY).toBe(1);
     expect(env.SIMULATION_MAX_RETRY).toBe(2);
+  });
+
+  it('accepts an explicit LLM_FAST_MODEL override', () => {
+    const env = parseEnv({ NODE_ENV: 'test', LLM_FAST_MODEL: 'deepseek-v4-flash' });
+    expect(env.LLM_FAST_MODEL).toBe('deepseek-v4-flash');
+  });
+
+  it('treats an empty-string LLM_FAST_MODEL as unset', () => {
+    const env = parseEnv({ NODE_ENV: 'test', LLM_FAST_MODEL: '' });
+    expect(env.LLM_FAST_MODEL).toBeUndefined();
   });
 
   it('coerces numeric string env values', () => {

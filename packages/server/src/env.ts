@@ -19,7 +19,14 @@ export const envSchema = z
     CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
     LLM_PROVIDER: z.string().default('deepseek'),
-    LLM_MODEL: z.string().default('deepseek-chat'),
+    // Heavy / quality model — used by FlowAgent (Generate) and ReviewAgent.review.
+    // Default tracks DeepSeek's V4 Preview release (Apr 2026); `deepseek-chat` is
+    // retired on Jul 24, 2026 and currently auto-routes to `deepseek-v4-flash`.
+    LLM_MODEL: z.string().default('deepseek-v4-pro'),
+    // Fast / cheap model — used by ReviewAgent.explain and any future low-stakes
+    // surface. Falls back to LLM_MODEL when unset, so single-model deployments
+    // stay backward compatible with no config change.
+    LLM_FAST_MODEL: optionalNonEmpty,
     LLM_API_KEY: optionalNonEmpty,
     LLM_BASE_URL: optionalNonEmpty,
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),

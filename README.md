@@ -238,7 +238,8 @@ All settings come from environment variables, parsed once at boot by a single ty
 | Variable               | Default                 | Required                                                | Description                                                                                                                 |
 | ---------------------- | ----------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load. Implemented: `deepseek`, `mock`. Adding a vendor is a new case in `createLLMProvider`. |
-| `LLM_MODEL`            | `deepseek-chat`         | no                                                      | Model id passed to the provider                                                                                             |
+| `LLM_MODEL`            | `deepseek-v4-pro`       | no                                                      | Heavy / quality model. Used by Generate (FlowAgent) and Review (ReviewAgent.review).                                        |
+| `LLM_FAST_MODEL`       | (reuses `LLM_MODEL`)    | no                                                      | Fast / cheap model. Used by Explain (ReviewAgent.explain). Set to e.g. `deepseek-v4-flash` to split routing.                |
 | `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser**                                                    |
 | `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                                                                      |
 | `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                                                                        |
@@ -250,6 +251,47 @@ All settings come from environment variables, parsed once at boot by a single ty
 | `NODE_ENV`             | `development`           | no                                                      | `development`, `test`, or `production`. `test` exempts `LLM_API_KEY` from being required.                                   |
 
 A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
+
+---
+
+## Deployment
+
+The repo is deployed as **two separate services** — Render for the API, Vercel for the SPA — to keep the LLM key server-side and avoid coupling the static bundle to the long-running Fastify process.
+
+### Backend — Render (Web Service)
+
+| Setting           | Value                                                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Root Directory    | _empty_ (repo root)                                                                                                     |
+| Build Command     | `HUSKY=0 pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter shared build && pnpm --filter server build`   |
+| Start Command     | `pnpm --filter server start`                                                                                            |
+| Required env vars | `NODE_ENV=production`, `LLM_PROVIDER`, `LLM_API_KEY` (when `LLM_PROVIDER=deepseek`), `CORS_ORIGIN=<your Vercel origin>` |
+
+`--ignore-scripts` skips `esbuild` postinstalls (which pnpm 11 blocks in CI). The server build is `tsc`-only so it does not need them. `shared` is built first because its `package.json` `main` points at the compiled `dist/`, which the runtime `node dist/index.js` then resolves through pnpm's workspace symlink.
+
+### Frontend — Vercel (Vite SPA)
+
+| Setting          | Value                                                                 |
+| ---------------- | --------------------------------------------------------------------- |
+| Framework Preset | `Vite` (or `Other`)                                                   |
+| Root Directory   | _empty_ (repo root)                                                   |
+| Install Command  | `HUSKY=0 pnpm install --frozen-lockfile --ignore-scripts`             |
+| Build Command    | `pnpm --filter shared build && pnpm --filter web build`               |
+| Output Directory | `packages/web/dist`                                                   |
+| Required env var | `VITE_API_BASE_URL=https://<your-render-host>` (Production + Preview) |
+
+`VITE_API_BASE_URL` makes the SPA call the Render host directly instead of relying on Vercel's same-origin rewrite, which has a ~30 s edge timeout that can cut off slow LLM responses. The fallback `vercel.json` rewrites are kept as a safety net for `/health` and stray paths.
+
+### Wiring checklist
+
+1. Deploy Render → confirm `https://<render-host>/health` returns `{"status":"ok"}`.
+2. Deploy Vercel with `VITE_API_BASE_URL` set → confirm `https://<vercel-host>` loads.
+3. Set `CORS_ORIGIN` on Render to the exact Vercel origin (no trailing slash) and let Render restart.
+4. From the live SPA, run **Generate → Explain → Review → Test Chatbot** end-to-end.
+
+### Free-tier caveat
+
+Render's free Web Service hibernates after ~15 minutes idle; the next request pays a 30–60 s cold start. Either upgrade the Render plan or schedule an external `/health` ping every ~10 minutes if uninterrupted demos matter.
 
 ---
 

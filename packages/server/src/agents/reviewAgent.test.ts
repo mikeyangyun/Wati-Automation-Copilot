@@ -314,3 +314,48 @@ describe('ReviewAgent.review — retry semantics & failure surfacing', () => {
     expect(provider.callCount).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// dual-provider wiring (heavy → review, fast → explain)
+// ---------------------------------------------------------------------------
+
+describe('ReviewAgent — dual-provider wiring', () => {
+  it('routes explain() to explainProvider and review() to provider', async () => {
+    const heavy = new MockLLMProvider([validReviewPayload]);
+    const fast = new MockLLMProvider([validMarkdownBullets]);
+    const agent = new ReviewAgent({ provider: heavy, explainProvider: fast });
+
+    const explanation = await agent.explain(sampleFlow());
+    expect(explanation).toBe(validMarkdownBullets);
+    expect(fast.callCount).toBe(1);
+    expect(heavy.callCount).toBe(0);
+
+    const issues = await agent.review(sampleFlow());
+    expect(issues).toHaveLength(2);
+    expect(heavy.callCount).toBe(1);
+    expect(fast.callCount).toBe(1);
+  });
+
+  it('falls back to provider when explainProvider is omitted', async () => {
+    const heavy = new MockLLMProvider([validMarkdownBullets, validReviewPayload]);
+    const agent = new ReviewAgent({ provider: heavy });
+
+    await agent.explain(sampleFlow());
+    await agent.review(sampleFlow());
+    expect(heavy.callCount).toBe(2);
+  });
+
+  it('keeps retry semantics independent across the two providers', async () => {
+    // explainProvider fails twice → 502; provider must not be touched.
+    const heavy = new MockLLMProvider([validReviewPayload]);
+    const fast = new MockLLMProvider(['nope', 'still nope']);
+    const agent = new ReviewAgent({ provider: heavy, explainProvider: fast });
+
+    await expect(agent.explain(sampleFlow())).rejects.toMatchObject({
+      code: 'LLM_UNAVAILABLE',
+      statusCode: 502,
+    });
+    expect(fast.callCount).toBe(2);
+    expect(heavy.callCount).toBe(0);
+  });
+});

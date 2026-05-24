@@ -43,16 +43,26 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   const store = opts.store ?? new InMemoryStore();
 
-  // Share one LLM provider between FlowAgent and ReviewAgent — both stateless,
-  // both billable from the same key. Only constructed if at least one agent
-  // wasn't injected (tests inject both and avoid touching env entirely).
+  // Build (at most) two LLM providers from env at composition root:
+  //   - heavy: quality model (e.g. deepseek-v4-pro) — Generate + Review.review
+  //   - fast:  cheap/low-latency model (e.g. deepseek-v4-flash) — Review.explain
+  // Both stateless and billable from the same key; only built when an agent
+  // wasn't injected (tests inject stubs and never touch env). When LLM_FAST_MODEL
+  // is unset the fast slot reuses the heavy provider — single-model deployments
+  // stay byte-for-byte equivalent to the previous behaviour.
   const needsProvider = opts.agent === undefined || opts.reviewer === undefined;
-  const provider = needsProvider ? createDefaultProvider() : null;
+  const heavyProvider = needsProvider ? createHeavyProvider() : null;
+  const fastProvider = needsProvider ? createFastProvider(heavyProvider!) : null;
 
   const agent =
-    opts.agent ?? new FlowAgent({ provider: provider!, maxRetry: config.LLM_MAX_RETRY });
+    opts.agent ?? new FlowAgent({ provider: heavyProvider!, maxRetry: config.LLM_MAX_RETRY });
   const reviewer =
-    opts.reviewer ?? new ReviewAgent({ provider: provider!, maxRetry: config.LLM_MAX_RETRY });
+    opts.reviewer ??
+    new ReviewAgent({
+      provider: heavyProvider!,
+      explainProvider: fastProvider!,
+      maxRetry: config.LLM_MAX_RETRY,
+    });
   const executor =
     opts.executor ?? new FlowExecutor({ store, maxRetry: config.SIMULATION_MAX_RETRY });
 
@@ -65,13 +75,30 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
 export type App = Awaited<ReturnType<typeof buildApp>>;
 
-function createDefaultProvider(): LLMProvider {
+function createHeavyProvider(): LLMProvider {
   const providerConfig: LLMProviderConfig = {
     provider: config.LLM_PROVIDER,
   };
   if (config.LLM_API_KEY !== undefined) providerConfig.apiKey = config.LLM_API_KEY;
   if (config.LLM_BASE_URL !== undefined) providerConfig.baseUrl = config.LLM_BASE_URL;
   if (config.LLM_MODEL !== undefined) providerConfig.model = config.LLM_MODEL;
+  if (config.LLM_TIMEOUT_MS !== undefined) providerConfig.timeoutMs = config.LLM_TIMEOUT_MS;
+  return createLLMProvider(providerConfig);
+}
+
+function createFastProvider(heavy: LLMProvider): LLMProvider {
+  // No fast model configured → reuse heavy. Single-model deployments stay free.
+  if (config.LLM_FAST_MODEL === undefined) return heavy;
+  // Mock provider ignores model id; reusing heavy keeps the call counter shared
+  // so existing test expectations don't drift.
+  if (config.LLM_PROVIDER === 'mock') return heavy;
+
+  const providerConfig: LLMProviderConfig = {
+    provider: config.LLM_PROVIDER,
+    model: config.LLM_FAST_MODEL,
+  };
+  if (config.LLM_API_KEY !== undefined) providerConfig.apiKey = config.LLM_API_KEY;
+  if (config.LLM_BASE_URL !== undefined) providerConfig.baseUrl = config.LLM_BASE_URL;
   if (config.LLM_TIMEOUT_MS !== undefined) providerConfig.timeoutMs = config.LLM_TIMEOUT_MS;
   return createLLMProvider(providerConfig);
 }

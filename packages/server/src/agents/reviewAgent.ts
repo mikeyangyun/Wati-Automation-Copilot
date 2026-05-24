@@ -44,17 +44,32 @@ export interface FlowReviewer {
 }
 
 export interface ReviewAgentOptions {
+  /**
+   * Heavy / quality provider. Used by `review` (semantic judgement, JSON
+   * schema validation, deterministic prompt — wants the strongest model).
+   * Also used by `explain` when no `explainProvider` is supplied, preserving
+   * the single-model default for tests and minimal deployments.
+   */
   provider: LLMProvider;
+  /**
+   * Optional fast / cheap provider for `explain`. Markdown summarisation is
+   * latency-sensitive and tolerant of a smaller model — wiring V4-Flash here
+   * (or any other low-cost adapter) keeps Explain snappy without compromising
+   * the Review judgement path.
+   */
+  explainProvider?: LLMProvider;
   /** Number of retries when the LLM output fails the validation gate. Default 1. */
   maxRetry?: number;
 }
 
 export class ReviewAgent implements FlowReviewer {
   private readonly provider: LLMProvider;
+  private readonly explainProvider: LLMProvider;
   private readonly maxRetry: number;
 
   constructor(opts: ReviewAgentOptions) {
     this.provider = opts.provider;
+    this.explainProvider = opts.explainProvider ?? opts.provider;
     this.maxRetry = opts.maxRetry ?? 1;
   }
 
@@ -70,7 +85,7 @@ export class ReviewAgent implements FlowReviewer {
     for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
       let raw: string;
       try {
-        raw = await this.provider.complete({ messages });
+        raw = await this.explainProvider.complete({ messages });
       } catch (err) {
         // Transport failure counts as an attempt; retry remains bounded by maxRetry.
         lastIssue = `transport: ${describeProviderError(err)}`;
