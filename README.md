@@ -4,9 +4,7 @@
 
 ---
 
-## Status
-
-**Implementation complete.** All product surfaces are implemented end-to-end and covered by 589 automated tests (73 shared / 257 server / 259 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
+## Features
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
@@ -15,7 +13,7 @@
 - **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle. Wati-style node cards (colored header, type-specific body preview, expected-replies chips on `ask_question` cards) and issue → node highlight on click. Edges are intentionally labelless — matching Wati's own builder, routing context is carried by the source `ask_question`'s chips and the edge's stroke colour (inherited from the source node's type accent). Fallback / catch-all edges render with a dashed stroke so the primary branches read first. The underlying `condition` is still present in the flow JSON, Explain output, and simulation traces — only the canvas painting was simplified.
 - **Workflow stepper** — three-step indicator (**Describe → Flow → Test**) in the app header advances as the user progresses, replacing per-panel step labels.
 
-For the product specification, see [PRODUCT.md](./PRODUCT.md). For a paste-ready demo script, see [DEMO.md](./DEMO.md).
+For the product specification, see [PRODUCT.md](./PRODUCT.md). For a paste-ready demo script, see [DEMO.md](./DEMO.md). For architecture and design notes, see [WRITEUP.md](./WRITEUP.md).
 
 ---
 
@@ -313,7 +311,7 @@ Render's free Web Service hibernates after ~15 minutes idle; the next request pa
 
 **Project docs**
 
-- Take-home write-up — [WRITEUP.md](./WRITEUP.md)
+- Project write-up — [WRITEUP.md](./WRITEUP.md)
 - Product specification — [PRODUCT.md](./PRODUCT.md)
 - Demo script — [DEMO.md](./DEMO.md)
 - Architecture sequence diagrams — [docs/architecture.md](./docs/architecture.md)
