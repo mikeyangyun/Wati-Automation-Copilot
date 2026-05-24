@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://wati-automation-copilot.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://wati-automation-copilot.onrender.com/health"
+    }
+  ]
+}
