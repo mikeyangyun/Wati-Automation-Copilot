@@ -10,7 +10,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -k -n server,web -c blue,green \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
+    "dev": "pnpm --filter shared build && concurrently -k -n shared,server,web -c yellow,blue,green \"pnpm --filter shared dev\" \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
