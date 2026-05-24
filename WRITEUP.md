@@ -34,12 +34,14 @@ POST /api/flows/:id/review
    the simulation FSM never does. → Reproducible demos, no hallucinated runtime branches.
 2. **Hybrid review (rules + LLM).** Structural validator owns correctness (broken edges,
    orphan nodes, schema violations, missing fallback); the LLM adds judgment (vague copy,
-   ambiguous branches). Findings merge by severity, structural wins on conflict, and a
-   model outage degrades to one `info` issue rather than a 502. → Rules can't be
-   hallucinated; the model can't break the contract.
-3. **`LLMProvider` interface, DeepSeek default.** Every LLM call goes through one tiny
-   abstraction. Adding OpenAI / Anthropic / a stricter mock is a new adapter + env flag,
-   zero agent-code changes. → SOLID dependency inversion + cheap multi-vendor evals later.
+   ambiguous branches). Findings merge by severity with structural wins on conflict. On
+   model outage the endpoint still returns 200 with the structural findings plus one
+   `info` issue — never a 502. → Rules can't be hallucinated; the model can't break the
+   contract.
+3. **`LLMProvider` interface, DeepSeek default.** Every LLM call goes through one ~30-line
+   abstraction; `MockLLMProvider` already exercises that seam end-to-end in CI. Adding
+   OpenAI / Anthropic is a new adapter + env flag, zero changes to agents / executor /
+   review. → A multi-vendor eval harness is an afternoon's work, not a refactor.
 4. **Single Zod schema in `packages/shared`.** One `FlowSchema` parses LLM output,
    validates HTTP requests, types the React store, and pins fixtures. `graph/` and
    `executor/` subtrees are barred from importing `llm/` via ESLint `no-restricted-imports`.
@@ -51,10 +53,14 @@ POST /api/flows/:id/review
 
 **📺 Walkthrough** — _[5-minute video](#)_ <!-- TODO: replace # with final Loom / YouTube / Drive URL before submission -->
 
-[DEMO.md](./DEMO.md) is the paste-ready storyboard the recording follows: setup,
-three scenarios (happy path → review surfacing real defects → conversation simulation
-with quick-replies and reset), and the closing pitch. Optional stills live under
-[demo/screenshots/](./demo/screenshots/).
+**What you'll see in 5 minutes:**
+
+1. Plain-English prompt → typed `Flow` rendered as Wati-style node cards in under a second.
+2. The review pass surfacing both deterministic structural defects and LLM-flagged semantic risks, with click-to-highlight wiring straight back to the offending node.
+3. The same flow walked end-to-end in the Test Chatbot widget, including a fallback retry and a `reset` mid-conversation — all driven by the server-side FSM, no client-side guesswork.
+
+[DEMO.md](./DEMO.md) is the paste-ready storyboard the recording follows; optional
+stills live under [demo/screenshots/](./demo/screenshots/).
 
 ---
 
@@ -73,8 +79,13 @@ Built with a small "agile micro-team" workflow I drove through Cursor:
 | Test strategy (unit / integration / smoke)       | First-pass test cases I then audited and tightened |
 
 Every architectural call and every invariant (executor never imports `llm/`, one schema,
-env-driven config, no secrets logged) was mine. Cursor turned drafts into typed code
-faster than I could type; BA / QA roles caught fixture gaps I'd have missed alone.
+env-driven config, no secrets logged) is mine — I read, edited, rejected, or accepted
+every Cursor-generated diff before it landed. The micro-team workflow earned its keep by
+forcing me to **articulate failure modes explicitly** before implementation: the review
+endpoint's "LLM outage → one `info` issue, never a 502" contract, the executor's ESLint
+boundary against importing `llm/`, the `MockLLMProvider` seam — each came out of a TL /
+QA pass naming an invariant I'd otherwise have left implicit, then a Dev / QA pair
+codifying it as a test.
 
 ---
 
