@@ -19,7 +19,14 @@ const RANK_DIR = 'TB' as const;
  * subtree visually grouped.
  */
 const NODE_SEP = 72;
-const RANK_SEP = 120;
+/**
+ * `ranksep` is now generous enough to absorb the vertical stagger that
+ * `StaggeredEdge` adds to its edge labels — see `siblingIndex` /
+ * `siblingCount` on the output below and the comment in `StaggeredEdge.tsx`.
+ * With 4 siblings per source (e.g. a 3-choice ask_question + fallback)
+ * staggered at ±21 px, total label band is ~42 px, comfortably inside 160.
+ */
+const RANK_SEP = 160;
 /**
  * `tight-tree` produces cleaner branching layouts than the default
  * `network-simplex` for the shapes our `FlowAgent` emits — most generated
@@ -43,6 +50,14 @@ export interface LayoutEdge {
   target: string;
   /** `condition` from the source `Edge`, if any. */
   label?: string;
+  /**
+   * Position of this edge among its source's outgoing edges (0-based,
+   * stable across runs). Consumed by `StaggeredEdge` to spread label
+   * boxes vertically so siblings from the same source don't pile up.
+   */
+  siblingIndex: number;
+  /** Total number of edges that share this edge's source. */
+  siblingCount: number;
 }
 
 export interface LayoutResult {
@@ -115,12 +130,36 @@ export function computeLayout(flow: Flow): LayoutResult {
     };
   });
 
-  const edges: LayoutEdge[] = safeEdges.map((edge) => ({
-    id: edge.id,
-    source: edge.from,
-    target: edge.to,
-    ...(edge.condition !== undefined ? { label: edge.condition } : {}),
-  }));
+  // Pre-compute per-edge sibling stats off the sorted list (which is the
+  // order users intuitively read: named branches first, fallback last).
+  // Sibling index is what `StaggeredEdge` consumes to spread labels
+  // vertically so labels from the same source never overlap.
+  const siblingCountBySource = new Map<string, number>();
+  for (const e of sortedEdges) {
+    siblingCountBySource.set(e.from, (siblingCountBySource.get(e.from) ?? 0) + 1);
+  }
+  const seenBySource = new Map<string, number>();
+  const slotByEdgeId = new Map<string, { siblingIndex: number; siblingCount: number }>();
+  for (const e of sortedEdges) {
+    const idx = seenBySource.get(e.from) ?? 0;
+    seenBySource.set(e.from, idx + 1);
+    slotByEdgeId.set(e.id, {
+      siblingIndex: idx,
+      siblingCount: siblingCountBySource.get(e.from) ?? 1,
+    });
+  }
+
+  const edges: LayoutEdge[] = safeEdges.map((edge) => {
+    const slot = slotByEdgeId.get(edge.id) ?? { siblingIndex: 0, siblingCount: 1 };
+    return {
+      id: edge.id,
+      source: edge.from,
+      target: edge.to,
+      ...(edge.condition !== undefined ? { label: edge.condition } : {}),
+      siblingIndex: slot.siblingIndex,
+      siblingCount: slot.siblingCount,
+    };
+  });
 
   return { nodes, edges };
 }

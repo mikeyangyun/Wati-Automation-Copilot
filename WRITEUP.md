@@ -15,7 +15,7 @@ walk through a deterministic mock conversation before any flow reaches a live ch
 summary), **Review** (hybrid structural + semantic issues with severities and
 click-to-highlight on the graph), **Test Chatbot** (multi-turn FSM simulation in a
 floating widget). All on Zod contracts shared across server + web + LLM-output parsing,
-covered by 552 automated tests (73 shared / 225 server / 254 web).
+covered by 561 automated tests (73 shared / 225 server / 263 web).
 
 **Seven REST endpoints** ([docs/data-model.md](./docs/data-model.md)):
 

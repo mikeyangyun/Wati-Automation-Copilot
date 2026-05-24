@@ -107,6 +107,49 @@ describe('computeLayout — edges', () => {
     expect(def.label).toBeUndefined();
   });
 
+  it('annotates each edge with siblingIndex / siblingCount so labels can be staggered', () => {
+    const flow = flowFixture();
+    const { edges } = computeLayout(flow);
+    // n_start has one outgoing edge → siblingCount 1, siblingIndex 0.
+    const fromStart = edges.find((e) => e.source === 'n_start')!;
+    expect(fromStart.siblingCount).toBe(1);
+    expect(fromStart.siblingIndex).toBe(0);
+    // n_ask has three outgoing edges (buy, sell, default-unconditional) →
+    // siblingCount 3 on each, indices 0/1/2 covering the full set without
+    // gaps or duplicates.
+    const fromAsk = edges.filter((e) => e.source === 'n_ask');
+    expect(fromAsk).toHaveLength(3);
+    for (const e of fromAsk) {
+      expect(e.siblingCount).toBe(3);
+    }
+    expect(fromAsk.map((e) => e.siblingIndex).sort()).toEqual([0, 1, 2]);
+  });
+
+  it('places fallback edges at the highest siblingIndex (rightmost slot) per source', () => {
+    // The deterministic sort that drives layout puts named branches before
+    // fallback; the same ordering is what siblingIndex now exposes to the
+    // edge renderer. Asserting it here protects the visual stagger contract
+    // — fallback labels are always rendered at the bottom of the stagger
+    // band, consistent with their semantic "catch-all" role.
+    const flow: Flow = {
+      ...flowFixture(),
+      edges: [
+        { id: 'e0', from: 'n_start', to: 'n_ask' },
+        { id: 'e_buy', from: 'n_ask', to: 'n_sales', condition: 'buyer' },
+        { id: 'e_sell', from: 'n_ask', to: 'n_support', condition: 'seller' },
+        { id: 'e_fb', from: 'n_ask', to: 'n_fallback', condition: 'fallback' },
+      ],
+    };
+    const { edges } = computeLayout(flow);
+    const fb = edges.find((e) => e.id === 'e_fb')!;
+    const buy = edges.find((e) => e.id === 'e_buy')!;
+    const sell = edges.find((e) => e.id === 'e_sell')!;
+    expect(fb.siblingIndex).toBeGreaterThan(buy.siblingIndex);
+    expect(fb.siblingIndex).toBeGreaterThan(sell.siblingIndex);
+    // And it's the last slot, not a gap in the middle.
+    expect(fb.siblingIndex).toBe(2);
+  });
+
   it('silently drops edges whose endpoints are missing (caller already warns)', () => {
     const flow: Flow = {
       ...flowFixture(),

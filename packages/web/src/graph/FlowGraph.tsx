@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Flow, Severity } from 'shared';
 
 import { FLOW_NODE_TYPES, type NodeCardData } from './NodeCard.js';
+import { FLOW_EDGE_TYPES, type StaggeredEdgeData } from './StaggeredEdge.js';
 import { computeLayout } from './layout.js';
 import { getNodeTypeStyle } from './nodeStyle.js';
 
@@ -75,17 +76,19 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
     const edges: RfEdge[] = layout.edges.map((e) => {
       const sourceNode = layout.nodes.find((n) => n.id === e.source);
       const stroke = sourceNode ? getNodeTypeStyle(sourceNode.type).accent : '#94a3b8';
+      const data: StaggeredEdgeData = {
+        siblingIndex: e.siblingIndex,
+        siblingCount: e.siblingCount,
+        color: stroke,
+        fallback: e.label === 'fallback',
+      };
       return {
         id: e.id,
         source: e.source,
         target: e.target,
-        type: 'smoothstep',
+        type: 'staggered',
         ...(e.label !== undefined ? { label: e.label } : {}),
-        style: { stroke, strokeWidth: 1.5 },
-        labelStyle: { fontSize: 11, fontWeight: 600, fill: stroke },
-        labelBgStyle: { fill: '#ffffff', stroke, strokeWidth: 1 },
-        labelBgPadding: [4, 4] as [number, number],
-        labelBgBorderRadius: 4,
+        data,
       };
     });
     return { rfNodes: nodes, rfEdges: edges };
@@ -139,6 +142,7 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={FLOW_NODE_TYPES}
+        edgeTypes={FLOW_EDGE_TYPES}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         nodesDraggable={false}

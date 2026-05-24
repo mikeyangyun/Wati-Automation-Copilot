@@ -42,6 +42,7 @@ Three scenarios, each lifted from PRODUCT.md §3.2. Run them in order — they t
 2. **Generated flow appears** in the right panel as an auto-laid-out graph. Point out:
    - **Trigger** node at the top, then an **ask_question**, then two branches into `assign_to_team` (Sales) and `send_message` (support article).
    - **Wati-style node cards** — colored header by node type, body shows type-specific preview (message text snippet, expected-replies chips, team name, API method, …).
+   - **Edge labels staggered per source** so multiple branches from one ask_question never pile up; **fallback edges render dashed** so the catch-all branch reads at a glance.
    - **Condition labels on edges** — `buyer`, `seller`.
    - Click **View JSON** to show the structured form is the same data, then toggle back to **Graph**.
 3. **Click Explain.** A markdown summary streams in above the flow. Read out the top bullet: it should describe the trigger, the question, and the two branches in plain English.
@@ -93,7 +94,7 @@ Same prompt as B, but now **revise** it to fix the gap:
 - **Schema as the contract.** One Zod type (`Flow`) generates TypeScript types for the server, the web app, and the LLM output parser. Drift between layers becomes a compile error.
 - **LLM-free invariants.** `executor/` and `validator/` cannot import from `llm/` — ESLint blocks it. That's how we keep "simulation is deterministic" honest.
 - **Provider-agnostic LLM.** Vendor lives behind `LLMProvider`. Swapping to OpenAI is a 30-line adapter and a config change.
-- **Test coverage.** 552 automated tests across `shared / server / web` (73 + 225 + 254), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
+- **Test coverage.** 561 automated tests across `shared / server / web` (73 + 225 + 263), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
 
 ---
 
