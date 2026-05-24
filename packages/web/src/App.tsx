@@ -11,6 +11,7 @@ import {
   stepSession,
   type SessionEnvelope,
 } from './api.js';
+import { Stepper, type StepperStep } from './components/Stepper.js';
 import { ChatPanel } from './panels/ChatPanel.js';
 import { FlowPanel } from './panels/FlowPanel.js';
 import { PromptPanel } from './panels/PromptPanel.js';
@@ -21,6 +22,73 @@ import type {
   ReviewStatus,
   SimulationStatus,
 } from './state.js';
+
+/* ---------- Recent-prompts persistence ---------- */
+
+const RECENT_PROMPTS_KEY = 'wati.recentPrompts';
+const RECENT_PROMPTS_MAX = 5;
+
+/**
+ * Defensive localStorage reader for the recent-prompts list.
+ * Tolerates malformed payloads (returns []) and clamps to the max length.
+ */
+function readStoredRecentPrompts(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_PROMPTS_KEY);
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .slice(0, RECENT_PROMPTS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredRecentPrompts(list: ReadonlyArray<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RECENT_PROMPTS_KEY, JSON.stringify(list));
+  } catch {
+    /* quota / disabled storage — best effort only */
+  }
+}
+
+/**
+ * Derives the 3-step workflow indicator from the two lifecycle slices that
+ * actually drive it: flow generation status and chat-widget visibility.
+ *
+ *   idle / generating / error → step 1 is the user's job
+ *   ready, widget closed      → step 2 ("inspect the Flow") is up
+ *   ready, widget open        → step 3 ("Test Chatbot") is up
+ *
+ * Kept as a pure function so we can pin it with a focused unit test if
+ * we ever expand the state machine.
+ */
+export function deriveWorkflowSteps(status: AppStatus, simOpen: boolean): StepperStep[] {
+  const ready = status.kind === 'ready';
+  if (ready && simOpen) {
+    return [
+      { label: 'Describe', state: 'done' },
+      { label: 'Flow', state: 'done' },
+      { label: 'Test', state: 'active' },
+    ];
+  }
+  if (ready) {
+    return [
+      { label: 'Describe', state: 'done' },
+      { label: 'Flow', state: 'active' },
+      { label: 'Test', state: 'pending' },
+    ];
+  }
+  return [
+    { label: 'Describe', state: 'active' },
+    { label: 'Flow', state: 'pending' },
+    { label: 'Test', state: 'pending' },
+  ];
+}
 
 export function App() {
   const [prompt, setPrompt] = useState('');
@@ -35,6 +103,10 @@ export function App() {
   // Index of the currently selected issue card. Drives graph highlighting.
   // Null = nothing selected, which is the default and the post-regenerate state.
   const [selectedIssueIndex, setSelectedIssueIndex] = useState<number | null>(null);
+  // Recent prompts surfaced in the Prompt panel for one-click reuse.
+  // Hydrated from localStorage on mount so they survive reloads — failed
+  // generations are recorded too, so the user can edit and retry.
+  const [recentPrompts, setRecentPrompts] = useState<string[]>(() => readStoredRecentPrompts());
   const generateAbortRef = useRef<AbortController | null>(null);
   const simAbortRef = useRef<AbortController | null>(null);
   const explainAbortRef = useRef<AbortController | null>(null);
@@ -64,7 +136,8 @@ export function App() {
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!prompt.trim()) return;
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
     generateAbortRef.current?.abort();
     simAbortRef.current?.abort();
     explainAbortRef.current?.abort();
@@ -80,6 +153,15 @@ export function App() {
     setExplainStatus({ kind: 'idle' });
     setReviewStatus({ kind: 'idle' });
     setSelectedIssueIndex(null);
+    // Record the submitted prompt to history immediately (before the LLM
+    // call resolves). This way the user can recover their last prompt even
+    // if generation fails — exactly the moment they're most likely to want
+    // to tweak and retry.
+    setRecentPrompts((prev) => {
+      const deduped = [trimmed, ...prev.filter((p) => p !== trimmed)].slice(0, RECENT_PROMPTS_MAX);
+      writeStoredRecentPrompts(deduped);
+      return deduped;
+    });
     try {
       const flow = await generateFlow(prompt, controller.signal);
       if (controller.signal.aborted) return;
@@ -89,6 +171,10 @@ export function App() {
       setStatus({ kind: 'error', error: summariseError(err) });
     }
   }, [prompt]);
+
+  const handleUseRecent = useCallback((next: string) => {
+    setPrompt(next);
+  }, []);
 
   /**
    * Open the chat widget. Lazily starts a session the first time it's
@@ -259,10 +345,13 @@ export function App() {
     }
   }
 
+  const workflowSteps = deriveWorkflowSteps(status, simOpen);
+
   return (
     <div className="app">
       <header className="header">
         <h1>Wati Automation Builder Copilot</h1>
+        <Stepper steps={workflowSteps} />
       </header>
       <main className="panels">
         <PromptPanel
@@ -270,6 +359,8 @@ export function App() {
           onPromptChange={setPrompt}
           onSubmit={handleSubmit}
           isGenerating={status.kind === 'generating'}
+          recentPrompts={recentPrompts}
+          onUseRecent={handleUseRecent}
         />
         <FlowPanel
           status={status}

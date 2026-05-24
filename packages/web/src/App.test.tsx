@@ -905,3 +905,192 @@ describe('App — Issue \u2194 Graph selection', () => {
     expect(trigger.style.opacity === '' || trigger.style.opacity === '1').toBe(true);
   });
 });
+
+describe('App — workflow stepper', () => {
+  it('at idle marks "Describe" as the active step and the other two as pending', () => {
+    render(<App />);
+    expect(screen.getByTestId('stepper-item-1')).toHaveClass('stepper-item-active');
+    expect(screen.getByTestId('stepper-item-2')).toHaveClass('stepper-item-pending');
+    expect(screen.getByTestId('stepper-item-3')).toHaveClass('stepper-item-pending');
+  });
+
+  it('advances to "Flow" active after a successful generation', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+
+    expect(screen.getByTestId('stepper-item-1')).toHaveClass('stepper-item-done');
+    expect(screen.getByTestId('stepper-item-2')).toHaveClass('stepper-item-active');
+    expect(screen.getByTestId('stepper-item-3')).toHaveClass('stepper-item-pending');
+  });
+
+  it('moves to "Test" active when the user opens the chat widget', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+    await user.click(screen.getByTestId('flow-test-chatbot'));
+    await screen.findByTestId('chat-transcript');
+
+    expect(screen.getByTestId('stepper-item-1')).toHaveClass('stepper-item-done');
+    expect(screen.getByTestId('stepper-item-2')).toHaveClass('stepper-item-done');
+    expect(screen.getByTestId('stepper-item-3')).toHaveClass('stepper-item-active');
+  });
+
+  it('demotes "Test" back to pending when the user closes the widget', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+    await user.click(screen.getByTestId('flow-test-chatbot'));
+    await screen.findByTestId('chat-transcript');
+
+    await user.click(screen.getByTestId('chat-close'));
+    expect(screen.getByTestId('stepper-item-2')).toHaveClass('stepper-item-active');
+    expect(screen.getByTestId('stepper-item-3')).toHaveClass('stepper-item-pending');
+  });
+
+  it('the old "Step 1 · Describe" eyebrow is gone from the Prompt panel', () => {
+    // Regression: the in-panel eyebrow used to make users wonder where
+    // Steps 2 and 3 were. The global stepper replaces it.
+    const { container } = render(<App />);
+    expect(container.querySelector('.prompt-eyebrow')).toBeNull();
+  });
+});
+
+describe('App — recent prompts persistence', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('wati.recentPrompts');
+    }
+  });
+
+  it('does not show any recent items on a clean install', () => {
+    render(<App />);
+    expect(screen.queryAllByTestId('recent-prompt')).toHaveLength(0);
+  });
+
+  it('records the prompt to localStorage on Generate and surfaces it back later', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'Greet new contacts');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+
+    // Persisted to localStorage with the trimmed text.
+    expect(window.localStorage.getItem('wati.recentPrompts')).toBe(
+      JSON.stringify(['Greet new contacts']),
+    );
+
+    // Tear down and remount — the entry should still be there as a one-click
+    // recent. Clearing the textarea first ensures the entry isn't hidden by
+    // the "same as current" filter inside PromptPanel.
+    unmount();
+    mockGenerate.mockReset();
+    render(<App />);
+    const items = screen.getAllByTestId('recent-prompt');
+    expect(items).toHaveLength(1);
+    expect(items[0]!.textContent).toContain('Greet new contacts');
+  });
+
+  it('dedupes repeats and keeps the most recent first', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    const user = userEvent.setup();
+    render(<App />);
+
+    const textarea = screen.getByLabelText(/prompt input/i);
+    await user.type(textarea, 'first prompt');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+
+    await user.clear(textarea);
+    await user.type(textarea, 'second prompt');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem('wati.recentPrompts') ?? '[]')[0]).toBe(
+        'second prompt',
+      ),
+    );
+
+    await user.clear(textarea);
+    await user.type(textarea, 'first prompt');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    // After re-submitting "first prompt", it should be hoisted to the front
+    // and the list should still have only 2 entries (dedup).
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem('wati.recentPrompts') ?? '[]');
+      expect(stored).toEqual(['first prompt', 'second prompt']);
+    });
+  });
+
+  it('caps the history at 5 entries', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const textarea = screen.getByLabelText(/prompt input/i);
+    for (let i = 0; i < 7; i++) {
+      mockGenerate.mockResolvedValueOnce(buildFlow({ id: `flow_${i}` }));
+      await user.clear(textarea);
+      await user.type(textarea, `prompt number ${i}`);
+      await user.click(screen.getByRole('button', { name: /generate/i }));
+      await waitFor(() => expect(screen.getByTestId('flow-graph')).toBeInTheDocument());
+    }
+
+    const stored = JSON.parse(window.localStorage.getItem('wati.recentPrompts') ?? '[]');
+    expect(stored).toHaveLength(5);
+    // Newest at the front, oldest dropped.
+    expect(stored[0]).toBe('prompt number 6');
+    expect(stored).not.toContain('prompt number 0');
+    expect(stored).not.toContain('prompt number 1');
+  });
+
+  it('clicking a recent item refills the textarea', async () => {
+    window.localStorage.setItem(
+      'wati.recentPrompts',
+      JSON.stringify(['Ask buyer or seller and route accordingly']),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    // The textarea starts blank so the recent isn't filtered out by the
+    // "same as current" rule.
+    const recent = screen.getByTestId('recent-prompt');
+    await user.click(recent);
+    expect((screen.getByLabelText(/prompt input/i) as HTMLTextAreaElement).value).toBe(
+      'Ask buyer or seller and route accordingly',
+    );
+  });
+
+  it('records the prompt even when generation fails (recoverable retry)', async () => {
+    mockGenerate.mockRejectedValueOnce(new ApiError('LLM_UNAVAILABLE', 'down', 502));
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/prompt input/i), 'will fail but I want it back');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByRole('alert');
+
+    // Even though generation failed, the prompt is in localStorage —
+    // the user can recover it from the Recent list after editing.
+    const stored = JSON.parse(window.localStorage.getItem('wati.recentPrompts') ?? '[]');
+    expect(stored).toContain('will fail but I want it back');
+  });
+
+  it('tolerates a corrupt localStorage entry by falling back to empty history', () => {
+    window.localStorage.setItem('wati.recentPrompts', '{not json');
+    render(<App />);
+    // Must not throw, and must not show any recents.
+    expect(screen.queryAllByTestId('recent-prompt')).toHaveLength(0);
+  });
+});
