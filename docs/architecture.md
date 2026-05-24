@@ -1,11 +1,31 @@
 # Architecture — Runtime Flows
 
-Sequence diagrams for each runtime path through the system. For the package layout and the system map, see the **Architecture** section in [../README.md](../README.md).
+Sequence diagrams for each runtime path through the system, plus the entity-relationship overview. For the package layout and the system map, see the **Architecture** section in [../README.md](../README.md). For field-level schemas of every box drawn below, see [data-model.md](./data-model.md).
 
 Two invariants hold across every flow:
 
 - One Zod-typed Flow drives the graph, the structured view, and the executor.
 - The executor is deterministic. The LLM is never invoked during a simulation step.
+
+---
+
+## Entity overview
+
+How the major persisted / runtime entities relate. Field-level definitions are in [data-model.md](./data-model.md); this is the "what owns what" picture the sequence diagrams below thread through.
+
+```mermaid
+erDiagram
+    FLOW ||--o{ NODE : "contains"
+    FLOW ||--o{ EDGE : "contains"
+    EDGE }o--|| NODE : "from / to"
+    FLOW ||--o{ SESSION : "drives"
+    SESSION ||--|| SESSION_STATE : "has"
+    SESSION_STATE ||--o{ TRACE : "appends"
+    REVIEW ||--o{ ISSUE : "produces"
+    ISSUE }o--o| NODE : "selects (nodeIds)"
+```
+
+`FLOW` is the only thing the store persists; `SESSION_STATE` lives in memory keyed by `sessionId`; `REVIEW` is a transient response shape (not stored). `ISSUE.nodeIds` is the click-to-highlight bridge from the issue list back to the graph.
 
 ---
 

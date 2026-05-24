@@ -1,6 +1,6 @@
 # Data Model & API
 
-Base URL: `/api`. JSON in, JSON out. Two resources — **Flow** and **Simulation**. Errors share one shape ([Errors](#errors)). Examples use the buyer / seller reference flow from [PRODUCT.md](../PRODUCT.md).
+Base URL: `/api`. JSON in, JSON out. Two resources — **Flow** and **Simulation**. Errors share one shape ([Errors](#errors)). Examples use the buyer / seller reference flow from [PRODUCT.md](../PRODUCT.md). For request lifecycles (sequence diagrams + entity relationships) see the companion [architecture.md](./architecture.md).
 
 ---
 
