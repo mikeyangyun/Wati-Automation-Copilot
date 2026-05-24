@@ -26,6 +26,10 @@ export function App() {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<AppStatus>({ kind: 'idle' });
   const [simStatus, setSimStatus] = useState<SimulationStatus>({ kind: 'inactive' });
+  // Whether the floating chat widget is visible. Decoupled from `simStatus`
+  // so that closing the widget keeps the session alive for resumption.
+  // The session itself is started lazily on first open of the widget.
+  const [simOpen, setSimOpen] = useState(false);
   const [explainStatus, setExplainStatus] = useState<ExplainStatus>({ kind: 'idle' });
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>({ kind: 'idle' });
   // Index of the currently selected issue card. Drives graph highlighting.
@@ -59,26 +63,6 @@ export function App() {
     [],
   );
 
-  // Auto-start a simulation session every time a (new) flow becomes ready.
-  const flowId = status.kind === 'ready' ? status.flow.id : null;
-  useEffect(() => {
-    if (flowId === null) return;
-    simAbortRef.current?.abort();
-    const controller = new AbortController();
-    simAbortRef.current = controller;
-    setSimStatus({ kind: 'starting' });
-    void (async () => {
-      try {
-        const envelope = await startSession(flowId, controller.signal);
-        if (controller.signal.aborted) return;
-        setSimStatus({ kind: 'active', envelope });
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        setSimStatus({ kind: 'error', error: summariseError(err) });
-      }
-    })();
-  }, [flowId]);
-
   const handleSubmit = useCallback(async () => {
     if (!prompt.trim()) return;
     generateAbortRef.current?.abort();
@@ -88,7 +72,11 @@ export function App() {
     const controller = new AbortController();
     generateAbortRef.current = controller;
     setStatus({ kind: 'generating' });
+    // Regenerating throws away whatever session was running and force-closes
+    // the floating chat widget. The next "Test Chatbot" click starts fresh
+    // against the new flow.
     setSimStatus({ kind: 'inactive' });
+    setSimOpen(false);
     setExplainStatus({ kind: 'idle' });
     setReviewStatus({ kind: 'idle' });
     setSelectedIssueIndex(null);
@@ -101,6 +89,40 @@ export function App() {
       setStatus({ kind: 'error', error: summariseError(err) });
     }
   }, [prompt]);
+
+  /**
+   * Open the chat widget. Lazily starts a session the first time it's
+   * opened against a given flow — if one is already running, just shows
+   * the widget. Closing the widget never aborts the session.
+   */
+  const handleOpenChatbot = useCallback(() => {
+    if (status.kind !== 'ready') return;
+    setSimOpen(true);
+    const current = simStatusRef.current;
+    if (current.kind === 'active' || current.kind === 'starting') return;
+    const fid = status.flow.id;
+    simAbortRef.current?.abort();
+    const controller = new AbortController();
+    simAbortRef.current = controller;
+    setSimStatus({ kind: 'starting' });
+    void (async () => {
+      try {
+        const envelope = await startSession(fid, controller.signal);
+        if (controller.signal.aborted) return;
+        setSimStatus({ kind: 'active', envelope });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setSimStatus({ kind: 'error', error: summariseError(err) });
+      }
+    })();
+  }, [status]);
+
+  const handleCloseChatbot = useCallback(() => {
+    // Intentionally does NOT reset simStatus or abort the running session —
+    // the user may close the widget to look at the graph and re-open later
+    // mid-conversation.
+    setSimOpen(false);
+  }, []);
 
   const handleStep = useCallback(async (message: string) => {
     const current = simStatusRef.current;
@@ -261,12 +283,18 @@ export function App() {
           {...(selectedSeverity !== undefined ? { selectedSeverity } : {})}
           selectedIssueIndex={selectedIssueIndex}
           onSelectIssue={setSelectedIssueIndex}
-        />
-        <ChatPanel
-          status={simStatus}
-          onStep={handleStep}
-          onReset={handleReset}
-          {...(status.kind === 'ready' ? { flow: status.flow } : {})}
+          onOpenChatbot={handleOpenChatbot}
+          chatWidget={
+            simOpen ? (
+              <ChatPanel
+                status={simStatus}
+                onStep={handleStep}
+                onReset={handleReset}
+                onClose={handleCloseChatbot}
+                {...(status.kind === 'ready' ? { flow: status.flow } : {})}
+              />
+            ) : null
+          }
         />
       </main>
     </div>

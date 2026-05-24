@@ -175,13 +175,38 @@ describe('App — flow generation', () => {
   });
 });
 
-describe('App — simulation auto-start + step + reset', () => {
+describe('App — Test Chatbot flow (start + step + reset)', () => {
+  /**
+   * Drives the regenerate path AND clicks "Test Chatbot" so the floating
+   * chat widget mounts. The session is started lazily on that click — the
+   * previous "auto-start on ready" behavior was removed in favour of a more
+   * focused 2-column layout (Prompt + Flow), with the chat as an explicit
+   * opt-in widget. Kept named `generate` so existing call sites in this
+   * describe block don't need to change.
+   */
   async function generate(user: ReturnType<typeof userEvent.setup>) {
     await user.type(screen.getByLabelText(/prompt input/i), 'hi');
     await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+    await user.click(screen.getByTestId('flow-test-chatbot'));
   }
 
-  it('auto-starts a session on ready and shows the first bot message', async () => {
+  it('does not auto-start a session on flow ready (user must click Test Chatbot)', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/prompt input/i), 'hi');
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await screen.findByTestId('flow-graph');
+
+    // Crucial regression: the simulator must NOT bootstrap until the user
+    // explicitly asks for it via Test Chatbot.
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('chat-transcript')).not.toBeInTheDocument();
+  });
+
+  it('clicking Test Chatbot starts a session and shows the first bot message', async () => {
     mockGenerate.mockResolvedValueOnce(buildFlow());
     mockStart.mockResolvedValueOnce(buildEnvelope());
     const user = userEvent.setup();
@@ -192,6 +217,57 @@ describe('App — simulation auto-start + step + reset', () => {
     const transcript = await screen.findByTestId('chat-transcript');
     expect(transcript).toHaveTextContent('Buyer or seller?');
     expect(mockStart).toHaveBeenCalledWith('flow_demo', expect.any(AbortSignal));
+  });
+
+  it('closing the chat widget keeps the session intact for re-open', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('chat-transcript');
+
+    // Close the widget — chat UI disappears but startSession should NOT be
+    // re-invoked when we reopen.
+    await user.click(screen.getByTestId('chat-close'));
+    expect(screen.queryByTestId('chat-transcript')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('chat-widget')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('flow-test-chatbot'));
+    // Same single startSession call — re-opening reused the session.
+    expect(mockStart).toHaveBeenCalledTimes(1);
+    // And the transcript came back as it was.
+    expect(await screen.findByTestId('chat-transcript')).toHaveTextContent('Buyer or seller?');
+  });
+
+  it('regenerating closes the chat widget and resets the session state', async () => {
+    mockGenerate.mockResolvedValueOnce(buildFlow());
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    const user = userEvent.setup();
+    render(<App />);
+    await generate(user);
+    await screen.findByTestId('chat-transcript');
+
+    // Trigger a second Generate. The widget must auto-close and the session
+    // mock must be reset so the next Test Chatbot click starts fresh.
+    mockGenerate.mockResolvedValueOnce(buildFlow({ id: 'flow_demo_v2' }));
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    await waitFor(() => expect(screen.queryByTestId('chat-widget')).not.toBeInTheDocument());
+    // New start required on next open against the new flow id.
+    mockStart.mockResolvedValueOnce(buildEnvelope());
+    await screen.findByTestId('flow-graph');
+    await user.click(screen.getByTestId('flow-test-chatbot'));
+    await waitFor(() =>
+      expect(mockStart).toHaveBeenLastCalledWith('flow_demo_v2', expect.any(AbortSignal)),
+    );
+  });
+
+  it('Test Chatbot button is disabled before a flow is ready', () => {
+    render(<App />);
+    // The button is gated behind flowReady — it's not even in the DOM at idle
+    // since the whole header-actions group is only rendered when ready.
+    expect(screen.queryByTestId('flow-test-chatbot')).not.toBeInTheDocument();
   });
 
   it('appends user + bot turns when a reply is sent', async () => {
