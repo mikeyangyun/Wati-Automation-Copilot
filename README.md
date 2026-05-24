@@ -6,7 +6,7 @@
 
 ## Status
 
-**Implementation complete.** All product surfaces are implemented end-to-end and covered by 578 automated tests (73 shared / 249 server / 256 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
+**Implementation complete.** All product surfaces are implemented end-to-end and covered by 581 automated tests (73 shared / 252 server / 256 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.

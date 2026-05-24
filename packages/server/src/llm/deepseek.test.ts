@@ -3,11 +3,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { DeepSeekProvider } from './deepseek.js';
 import type { LLMProvider } from './types.js';
 
-const buildOkResponse = (content: string): Response =>
-  new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+// Helper now also encodes finish_reason so we can exercise the new
+// "truncated by length" + empty-content guards. `stop` is the well-formed
+// default — the providers we care about always return one of stop / length
+// / content_filter.
+const buildOkResponse = (
+  content: string,
+  finishReason: 'stop' | 'length' | 'content_filter' = 'stop',
+): Response =>
+  new Response(
+    JSON.stringify({
+      choices: [{ message: { content }, finish_reason: finishReason }],
+    }),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 
 const newProvider = (overrides: Partial<ConstructorParameters<typeof DeepSeekProvider>[0]> = {}) =>
   new DeepSeekProvider({
@@ -69,10 +81,40 @@ describe('DeepSeekProvider — complete', () => {
       { role: 'user', content: 'hi' },
     ]);
     expect(body.temperature).toBe(0);
-    // Default cap — sized empirically against the FlowSchema (see deepseek.ts
-    // DEFAULT_MAX_TOKENS); this assertion is what stops a future "oh just
-    // remove the cap" diff from sliding through review.
-    expect(body.max_tokens).toBe(2048);
+    // Default cap — raised to 4096 after observing flash-mode truncations
+    // well below the original 2048 ceiling (see deepseek.ts DEFAULT_MAX_TOKENS
+    // doc). This assertion is what stops a future "oh just remove the cap"
+    // diff from sliding through review.
+    expect(body.max_tokens).toBe(4096);
+  });
+
+  it('rejects an HTTP-200 response whose content is the empty string', async () => {
+    // Failure mode observed in dev logs: flash + JSON mode occasionally
+    // returns `content: ""` while still reporting finish_reason="stop".
+    // Without an explicit guard, that empty string would reach
+    // `JSON.parse("")` in the agent and surface as a confusing
+    // "Unexpected end of JSON input" — the operator-facing message has
+    // to call out that the provider produced nothing.
+    const provider = newProvider({
+      fetch: vi.fn().mockResolvedValue(buildOkResponse('', 'stop')),
+    });
+    await expect(
+      provider.complete({ messages: [{ role: 'user', content: 'hi' }] }),
+    ).rejects.toThrow(/empty content/i);
+  });
+
+  it('still returns content when finish_reason is "length" — caller decides whether to retry', async () => {
+    // We do NOT throw on truncation: the downstream JSON parser is the
+    // authoritative validator (a truncated payload will fail there with a
+    // precise position), and some callers (explain) can tolerate cut-off
+    // markdown. We do log a warn so the operator sees max_tokens was the
+    // root cause — that's the assertion below the call.
+    const provider = newProvider({
+      fetch: vi.fn().mockResolvedValue(buildOkResponse('{"partial":true', 'length')),
+    });
+    await expect(provider.complete({ messages: [{ role: 'user', content: 'hi' }] })).resolves.toBe(
+      '{"partial":true',
+    );
   });
 
   it('honours an explicit maxTokens override in the body', async () => {
@@ -173,6 +215,43 @@ describe('DeepSeekProvider — complete', () => {
     await expect(
       provider.complete({ messages: [{ role: 'user', content: 'hi' }] }),
     ).rejects.toThrow();
+  });
+
+  it('aborts a slow body read (headers arrive fast, body streams past timeout)', async () => {
+    // Reproduces the production failure mode observed in pid-65610 logs:
+    // DeepSeek returned response headers in <1 s but the JSON body streamed
+    // over 40+ s. The previous implementation cleared the abort timer right
+    // after `await fetch` resolved, leaving `response.json()` unguarded —
+    // which is why `LLM_TIMEOUT_MS=30000` failed to enforce its contract.
+    // We model that here by resolving the fetch promise immediately with a
+    // Response whose body never settles.
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const slowBody = new ReadableStream({
+        start(controller) {
+          // Send opening brace so HTTP-200 + Content-Type checks pass, then
+          // never call controller.close() — the consumer's response.json()
+          // will hang on the Promise until something aborts it.
+          controller.enqueue(new TextEncoder().encode('{'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(new DOMException('Aborted', 'AbortError'));
+          });
+        },
+      });
+      return Promise.resolve(
+        new Response(slowBody, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+    const provider = newProvider({ fetch: fetchMock, timeoutMs: 30 });
+    const start = Date.now();
+    await expect(
+      provider.complete({ messages: [{ role: 'user', content: 'hi' }] }),
+    ).rejects.toThrow();
+    // Abort fires at ~30 ms — must complete well under 500 ms or the timer
+    // is again only guarding connect + headers (the regression).
+    expect(Date.now() - start).toBeLessThan(500);
   });
 
   it('lets a per-call timeoutMs override the constructor default', async () => {

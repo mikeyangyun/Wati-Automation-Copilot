@@ -24,14 +24,25 @@ const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
 const DEFAULT_MODEL = 'deepseek-chat';
 const DEFAULT_TIMEOUT_MS = 30_000;
 /**
- * Default completion-token cap. Sized empirically off the FlowSchema:
- * a 15-node flow with full `expectedReplies` + handoff messages clocks
- * around 1500 tokens of JSON; 2048 leaves ~30% headroom for verbose
- * model output while still cutting worst-case latency in half vs. the
- * DeepSeek API default (~4096).
+ * Default completion-token cap. Originally tuned to 2048 to halve worst-case
+ * latency vs. the DeepSeek API default (~4096), but production observation
+ * on `deepseek-v4-flash` showed clean mid-string truncations at ~500 tokens
+ * of *character* output — well below the cap, suggesting DeepSeek's flash
+ * tokenizer counts JSON whitespace and bracket scaffolding more heavily
+ * than expected. Raising to 4096 removes the cap as a suspect; if a flow
+ * really emits >4096 tokens we want to find out (probably means the prompt
+ * is too open-ended), not silently truncate.
  */
-const DEFAULT_MAX_TOKENS = 2048;
+const DEFAULT_MAX_TOKENS = 4096;
 
+/**
+ * Response shape we actually depend on. `finish_reason` is optional in the
+ * spec but every provider we've seen returns it; we make it optional here
+ * for forward compatibility and log it on the way out — without that field
+ * the difference between "model decided to stop" and "max_tokens hit" is
+ * invisible, which is exactly the failure mode that bit us on flash + JSON
+ * mode (mid-string truncation, no log explanation).
+ */
 const ChatCompletionResponseSchema = z.object({
   choices: z
     .array(
@@ -39,6 +50,7 @@ const ChatCompletionResponseSchema = z.object({
         message: z.object({
           content: z.string(),
         }),
+        finish_reason: z.string().optional(),
       }),
     )
     .min(1),
@@ -69,16 +81,22 @@ export class DeepSeekProvider implements LLMProvider {
   async complete(opts: LLMCompleteOptions): Promise<string> {
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
     const controller = new AbortController();
+    // The timer MUST guard the entire call — including streaming body read —
+    // not just connect + headers. Node's fetch resolves the moment response
+    // headers arrive (typically <1 s for DeepSeek) but the JSON body itself
+    // streams token-by-token over 20–40 s. If we cleared the timer right
+    // after `await fetch` (the previous shape) the abort signal would no
+    // longer cover `response.json()`, and a 30 s timeout would silently
+    // become "unbounded". `clearTimeout` therefore lives in the outer
+    // `finally` so it always fires last, regardless of success or failure.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    // `performance.now()` gives us a monotonic, sub-millisecond clock that
-    // — unlike `Date.now()` — is immune to wall-clock jumps mid-request.
-    // We log the elapsed wall time around fetch + JSON parse because that
-    // is the latency component the operator perceives as "Generate is slow".
+    // `performance.now()` is a monotonic, sub-millisecond clock immune to
+    // wall-clock jumps; we measure the operator-perceived "Generate is slow"
+    // latency from request build through final JSON parse.
     const startedAt = performance.now();
 
-    let response: Response;
     try {
-      response = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
+      const response = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,44 +123,91 @@ export class DeepSeekProvider implements LLMProvider {
         }),
         signal: controller.signal,
       });
-    } catch (err) {
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`DeepSeek HTTP ${response.status}: ${body.slice(0, 200)}`);
+      }
+
+      const payload: unknown = await response.json();
+      const parsed = ChatCompletionResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new Error('DeepSeek response payload was malformed or missing content');
+      }
+
+      const choice = parsed.data.choices[0]!;
+      const content = choice.message.content;
+      const finishReason = choice.finish_reason ?? 'unknown';
+
+      // Treat zero-length content as a provider-side failure rather than
+      // letting it propagate to the agent's JSON parser as a confusing
+      // "empty input" error. Observed in flash + JSON mode: the API
+      // returns HTTP 200 with `content: ""` — almost certainly a
+      // misalignment between the system prompt and the JSON-mode
+      // grammar constraint. Throwing here triggers the agent's retry,
+      // which is what we want.
+      if (content.length === 0) {
+        throw new Error(
+          `DeepSeek returned empty content (finish_reason=${finishReason}); request shape OK but model produced no output`,
+        );
+      }
+
+      // `finish_reason: "length"` is the smoking gun for a max_tokens-
+      // truncated payload — the JSON parser will fail next, but the
+      // operator-facing diagnostic should call out token exhaustion
+      // explicitly so the fix ("raise max_tokens or shorten prompt")
+      // is one log line away, not three layers of bisection.
+      if (finishReason === 'length') {
+        logger.warn(
+          {
+            provider: this.name,
+            model: this.model,
+            contentChars: content.length,
+            maxTokens: this.maxTokens,
+            finishReason,
+          },
+          'llm output truncated by max_tokens (finish_reason=length) — JSON parse will fail',
+        );
+      }
+
       const elapsedMs = Math.round(performance.now() - startedAt);
+      logger.info(
+        {
+          provider: this.name,
+          model: this.model,
+          elapsedMs,
+          contentChars: content.length,
+          finishReason,
+          ok: true,
+        },
+        'llm provider call ok',
+      );
+      return content;
+    } catch (err) {
+      // Single outer catch covers every failure mode — connection refused,
+      // 4xx/5xx from DeepSeek, malformed payload, AND the slow-body-read
+      // abort that the previous nested try shape silently swallowed (the
+      // 30 s timer fires during `response.json()`, not `await fetch`).
+      // `controller.signal.aborted` is the authoritative "we killed it"
+      // signal — we read it instead of pattern-matching the error name,
+      // which Node spells inconsistently across versions (`AbortError` /
+      // `DOMException` / `TypeError: terminated`).
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      const aborted = controller.signal.aborted;
       logger.warn(
-        { provider: this.name, model: this.model, elapsedMs, ok: false },
-        'llm provider call failed',
+        {
+          provider: this.name,
+          model: this.model,
+          elapsedMs,
+          timeoutMs,
+          aborted,
+          ok: false,
+        },
+        aborted ? 'llm provider call aborted by timeout' : 'llm provider call failed',
       );
       throw err;
     } finally {
       clearTimeout(timer);
     }
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`DeepSeek HTTP ${response.status}: ${body.slice(0, 200)}`);
-    }
-
-    const payload: unknown = await response.json();
-    const parsed = ChatCompletionResponseSchema.safeParse(payload);
-    if (!parsed.success) {
-      throw new Error('DeepSeek response payload was malformed or missing content');
-    }
-
-    const content = parsed.data.choices[0]?.message.content;
-    if (typeof content !== 'string') {
-      throw new Error('DeepSeek response payload was malformed or missing content');
-    }
-
-    const elapsedMs = Math.round(performance.now() - startedAt);
-    logger.info(
-      {
-        provider: this.name,
-        model: this.model,
-        elapsedMs,
-        contentChars: content.length,
-        ok: true,
-      },
-      'llm provider call ok',
-    );
-    return content;
   }
 }
