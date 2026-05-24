@@ -639,10 +639,13 @@ body {
   position: absolute;
   right: 24px;
   bottom: 24px;
-  width: min(360px, calc(100% - 32px));
-  /* Hard cap so the widget never grows past the visible area on short
-   * viewports, but otherwise prefers a comfortable 560px column. */
-  max-height: min(620px, calc(100% - 32px));
+  /* Width/height are driven by FlowPanel's `widgetSize` state (inline style)
+   * so the user can drag the top-left handle to resize. Min sizes here are
+   * a safety net in case the inline style is stripped or misconfigured. */
+  min-width: 320px;
+  min-height: 360px;
+  max-width: 85vw;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   background: #ffffff;
@@ -655,6 +658,68 @@ body {
    * obscuring an open review block. */
   z-index: 5;
   overflow: hidden;
+}
+
+/* Top-left drag-grip. Sits over the widget's rounded corner so the user
+ * sees a clear handle, but visually subtle so it doesn't distract while
+ * chatting. Cursor signals diagonal resize. */
+.chat-widget-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: nwse-resize;
+  z-index: 2;
+  border-top-left-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease;
+  touch-action: none;
+}
+
+.chat-widget-resize-handle:hover,
+.chat-widget-resize-handle:focus-visible {
+  opacity: 1;
+  background: #f1f5f9;
+  outline: none;
+}
+
+/* The visible grip — two short bars forming a corner mark. Pure CSS so the
+ * handle stays accessible without an asset file. */
+.chat-widget-resize-grip {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+}
+
+.chat-widget-resize-grip::before,
+.chat-widget-resize-grip::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.chat-widget-resize-grip::before {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 2px;
+}
+
+.chat-widget-resize-grip::after {
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 10px;
 }
 
 .chat-widget > .chat-panel-widget {

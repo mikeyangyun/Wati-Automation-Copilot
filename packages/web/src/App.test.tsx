@@ -423,6 +423,83 @@ describe('App — Test Chatbot flow (start + step + reset)', () => {
 
     await screen.findByText(/starting simulation/i);
   });
+
+  describe('widget resize', () => {
+    afterEach(() => {
+      try {
+        window.localStorage.removeItem('wati.chatWidgetSize');
+      } catch {
+        /* test env may not expose storage — ignore */
+      }
+    });
+
+    it('opens with default 360×560 size when no localStorage entry exists', async () => {
+      mockGenerate.mockResolvedValueOnce(buildFlow());
+      mockStart.mockResolvedValueOnce(buildEnvelope());
+      const user = userEvent.setup();
+      render(<App />);
+      await generate(user);
+
+      const widget = await screen.findByTestId('chat-widget');
+      expect(widget).toHaveStyle({ width: '360px', height: '560px' });
+    });
+
+    it('exposes a top-left resize handle on the widget', async () => {
+      mockGenerate.mockResolvedValueOnce(buildFlow());
+      mockStart.mockResolvedValueOnce(buildEnvelope());
+      const user = userEvent.setup();
+      render(<App />);
+      await generate(user);
+
+      const handle = await screen.findByTestId('chat-widget-resize-handle');
+      // ARIA role + label so it's discoverable for assistive tech.
+      expect(handle).toHaveAttribute('role', 'separator');
+      expect(handle).toHaveAttribute('aria-label', 'Resize chat widget');
+    });
+
+    it('restores the previously persisted size from localStorage on first open', async () => {
+      window.localStorage.setItem(
+        'wati.chatWidgetSize',
+        JSON.stringify({ width: 520, height: 720 }),
+      );
+      mockGenerate.mockResolvedValueOnce(buildFlow());
+      mockStart.mockResolvedValueOnce(buildEnvelope());
+      const user = userEvent.setup();
+      render(<App />);
+      await generate(user);
+
+      const widget = await screen.findByTestId('chat-widget');
+      expect(widget).toHaveStyle({ width: '520px', height: '720px' });
+    });
+
+    it('ignores a corrupt localStorage entry and falls back to defaults', async () => {
+      window.localStorage.setItem('wati.chatWidgetSize', '{not json');
+      mockGenerate.mockResolvedValueOnce(buildFlow());
+      mockStart.mockResolvedValueOnce(buildEnvelope());
+      const user = userEvent.setup();
+      render(<App />);
+      await generate(user);
+
+      const widget = await screen.findByTestId('chat-widget');
+      expect(widget).toHaveStyle({ width: '360px', height: '560px' });
+    });
+
+    it('floors a too-small persisted size to the safety minimum', async () => {
+      // Below WIDGET_MIN_WIDTH (320) / WIDGET_MIN_HEIGHT (360).
+      window.localStorage.setItem(
+        'wati.chatWidgetSize',
+        JSON.stringify({ width: 100, height: 100 }),
+      );
+      mockGenerate.mockResolvedValueOnce(buildFlow());
+      mockStart.mockResolvedValueOnce(buildEnvelope());
+      const user = userEvent.setup();
+      render(<App />);
+      await generate(user);
+
+      const widget = await screen.findByTestId('chat-widget');
+      expect(widget).toHaveStyle({ width: '320px', height: '360px' });
+    });
+  });
 });
 
 describe('App — Explain wiring', () => {

@@ -1,8 +1,71 @@
-import { Suspense, lazy, useState, type ReactNode } from 'react';
+import {
+  Suspense,
+  lazy,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import type { Severity } from 'shared';
 
 import { IssueList } from '../components/IssueList.js';
 import type { AppStatus, ExplainStatus, ReviewStatus } from '../state.js';
+
+/* ---------- Chat widget sizing ---------- */
+
+const WIDGET_STORAGE_KEY = 'wati.chatWidgetSize';
+const WIDGET_DEFAULT_WIDTH = 360;
+const WIDGET_DEFAULT_HEIGHT = 560;
+const WIDGET_MIN_WIDTH = 320;
+const WIDGET_MIN_HEIGHT = 360;
+
+interface WidgetSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * Reads the persisted widget size from localStorage with defensive parsing —
+ * malformed JSON or out-of-range numbers fall back to defaults. SSR-safe
+ * (returns defaults when `window` is undefined).
+ */
+function readStoredWidgetSize(): WidgetSize {
+  if (typeof window === 'undefined') {
+    return { width: WIDGET_DEFAULT_WIDTH, height: WIDGET_DEFAULT_HEIGHT };
+  }
+  try {
+    const raw = window.localStorage.getItem(WIDGET_STORAGE_KEY);
+    if (raw === null) {
+      return { width: WIDGET_DEFAULT_WIDTH, height: WIDGET_DEFAULT_HEIGHT };
+    }
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'width' in parsed &&
+      'height' in parsed &&
+      typeof (parsed as { width: unknown }).width === 'number' &&
+      typeof (parsed as { height: unknown }).height === 'number'
+    ) {
+      const { width, height } = parsed as WidgetSize;
+      return {
+        width: Math.max(WIDGET_MIN_WIDTH, width),
+        height: Math.max(WIDGET_MIN_HEIGHT, height),
+      };
+    }
+  } catch {
+    /* corrupt entry — fall through to defaults */
+  }
+  return { width: WIDGET_DEFAULT_WIDTH, height: WIDGET_DEFAULT_HEIGHT };
+}
+
+function writeStoredWidgetSize(size: WidgetSize): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(size));
+  } catch {
+    /* quota / disabled storage — best effort only */
+  }
+}
 
 /*
  * Lazy-loaded so they don't bloat the initial bundle. Neither is needed
@@ -66,6 +129,7 @@ export function FlowPanel({
   // The view toggle is presentation-only, so it lives in the panel rather
   // than bubbling all the way up to App. Graph is the default.
   const [view, setView] = useState<FlowView>('graph');
+  const [widgetSize, setWidgetSize] = useState<WidgetSize>(readStoredWidgetSize);
 
   const isExplainLoading = explainStatus.kind === 'loading';
   const isExplainRefreshing = explainStatus.kind === 'ready' && explainStatus.refreshing === true;
@@ -157,12 +221,87 @@ export function FlowPanel({
         selectedSeverity={selectedSeverity}
       />
       {chatWidget !== null && chatWidget !== undefined && (
-        <div className="chat-widget" data-testid="chat-widget">
+        <div
+          className="chat-widget"
+          data-testid="chat-widget"
+          style={{ width: `${widgetSize.width}px`, height: `${widgetSize.height}px` }}
+        >
+          <ChatWidgetResizeHandle size={widgetSize} onResize={setWidgetSize} />
           {chatWidget}
         </div>
       )}
     </section>
   );
+}
+
+/**
+ * Drag-from-top-left resize affordance for the chat widget. Pure pointer
+ * tracking — we don't go through React state on every mousemove (would render
+ * the parent on every pixel). Instead we set the widget's inline width/height
+ * directly via the prop callback (cheap because only the widget div + handle
+ * re-render), and persist to localStorage once on pointerup.
+ */
+function ChatWidgetResizeHandle({
+  size,
+  onResize,
+}: {
+  size: WidgetSize;
+  onResize: (next: WidgetSize) => void;
+}) {
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Left-button only — middle / right clicks shouldn't start a resize.
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = size.width;
+    const startH = size.height;
+    // Track the most recent committed size so we can persist exactly that on
+    // pointerup — `size` from closure stays stale across moves otherwise.
+    let lastW = startW;
+    let lastH = startH;
+
+    const maxW = Math.round(window.innerWidth * 0.85);
+    const maxH = Math.round(window.innerHeight * 0.9);
+
+    const onMove = (ev: PointerEvent) => {
+      // The widget is anchored bottom-right. Dragging the top-left handle
+      // toward the upper-left should grow it, so positive delta = startX - x.
+      const dx = startX - ev.clientX;
+      const dy = startY - ev.clientY;
+      lastW = clamp(startW + dx, WIDGET_MIN_WIDTH, maxW);
+      lastH = clamp(startH + dy, WIDGET_MIN_HEIGHT, maxH);
+      onResize({ width: lastW, height: lastH });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      writeStoredWidgetSize({ width: lastW, height: lastH });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  return (
+    <div
+      className="chat-widget-resize-handle"
+      data-testid="chat-widget-resize-handle"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize chat widget"
+      title="Drag to resize"
+      onPointerDown={onPointerDown}
+    >
+      <span aria-hidden="true" className="chat-widget-resize-grip" />
+    </div>
+  );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 function ExplanationBlock({ status, onClose }: { status: ExplainStatus; onClose: () => void }) {
