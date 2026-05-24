@@ -11,8 +11,22 @@ import type { Edge as FlowEdge, Flow, Node as FlowNode, NodeType } from 'shared'
 export const NODE_WIDTH = 280;
 export const NODE_HEIGHT = 160;
 const RANK_DIR = 'TB' as const;
-const NODE_SEP = 48;
-const RANK_SEP = 96;
+/**
+ * Spacing knobs. Bumped from the original (48 / 96) after observing edge
+ * crossings on wide branching flows (multiple ask_question subtrees in
+ * parallel): tighter spacing forced dagre to route branches across each
+ * other. Larger gaps give the barycenter pass enough room to keep each
+ * subtree visually grouped.
+ */
+const NODE_SEP = 72;
+const RANK_SEP = 120;
+/**
+ * `tight-tree` produces cleaner branching layouts than the default
+ * `network-simplex` for the shapes our `FlowAgent` emits — most generated
+ * flows are short, wide trees with a fan-out at one or two ask_question
+ * nodes, which is exactly tight-tree's strength.
+ */
+const RANKER = 'tight-tree' as const;
 
 export interface LayoutNode {
   id: string;
@@ -55,14 +69,33 @@ export function computeLayout(flow: Flow): LayoutResult {
   const nodeIds = new Set(flow.nodes.map((n) => n.id));
   const safeEdges: FlowEdge[] = flow.edges.filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to));
 
+  /**
+   * Insertion order influences how dagre breaks ties when laying out a
+   * rank. For each ask_question / condition, we want the children placed
+   * left-to-right in a predictable, subtree-preserving order:
+   *   1. group by source id (subtree locality stays intact);
+   *   2. within a source, push fallback edges to the rightmost slot;
+   *   3. within a source, otherwise sort alphabetically by condition
+   *      label so identical flows give identical layouts.
+   * This drastically reduces cross-subtree edge crossings on wide,
+   * branching flows without forcing any visual hack at render time.
+   */
+  const sortedEdges: FlowEdge[] = [...safeEdges].sort((a, b) => {
+    if (a.from !== b.from) return a.from.localeCompare(b.from);
+    const aFallback = a.condition === 'fallback';
+    const bFallback = b.condition === 'fallback';
+    if (aFallback !== bFallback) return aFallback ? 1 : -1;
+    return (a.condition ?? '').localeCompare(b.condition ?? '');
+  });
+
   const g = new dagre.graphlib.Graph({ multigraph: true });
-  g.setGraph({ rankdir: RANK_DIR, nodesep: NODE_SEP, ranksep: RANK_SEP });
+  g.setGraph({ rankdir: RANK_DIR, nodesep: NODE_SEP, ranksep: RANK_SEP, ranker: RANKER });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const node of flow.nodes) {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
-  for (const edge of safeEdges) {
+  for (const edge of sortedEdges) {
     g.setEdge(edge.from, edge.to, {}, edge.id);
   }
 

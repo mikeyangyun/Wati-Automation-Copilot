@@ -31,6 +31,8 @@ The structured representation of a chatbot automation generated from a natural-l
 | `config`   | object | Type-specific settings (message text, team name, ...)                                        |
 | `position` | object | Optional graph coordinates `{ x, y }`                                                        |
 
+**Notes on `assign_to_team.config.team`** — prefer plain, short queue names like `Sales`, `Billing`, `Support`, or `Customer Success`. The customer-facing handoff transcript is built as `Transferring you to the {team} team…`, with redundant role / group suffixes (`Agent`, `Agents`, `Team`, `Teams`, `Bot`, `Bots`, `Department`, `Dept.`) stripped automatically — so `Sales` and `Sales Agent` both produce `Transferring you to the Sales team…`. Self-contained group names that already imply a queue (`Customer Support`, `Help Desk`, `Sales Squad`, `Customer Service`) are used as-is without appending `team`. The raw `team` value is still emitted on the `handoff` event for trace fidelity — sanitisation is a presentation concern only. See [`packages/server/src/executor/nodeHandlers.ts`](../packages/server/src/executor/nodeHandlers.ts) (`formatHandoffMessage`).
+
 **Edge**
 
 | Field       | Type   | Description                                                |

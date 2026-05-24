@@ -6,7 +6,7 @@
 
 ## Status
 
-**Feature complete.** All product surfaces are implemented end-to-end and covered by 540 automated tests:
+**Implementation complete.** All product surfaces are implemented end-to-end and covered by 552 automated tests (73 shared / 225 server / 254 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
@@ -257,7 +257,9 @@ A reference `.env.example` lives at `packages/server/.env.example`. Secret handl
 
 **Project docs**
 
+- Take-home write-up — [WRITEUP.md](./WRITEUP.md)
 - Product specification — [PRODUCT.md](./PRODUCT.md)
+- Demo script — [DEMO.md](./DEMO.md)
 - Architecture sequence diagrams — [docs/architecture.md](./docs/architecture.md)
 - Data model and REST reference — [docs/data-model.md](./docs/data-model.md)
 - Security rules — [.cursor/rules/security.mdc](./.cursor/rules/security.mdc)

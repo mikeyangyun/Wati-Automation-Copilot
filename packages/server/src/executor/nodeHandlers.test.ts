@@ -1,7 +1,7 @@
 import type { Edge, Node } from 'shared';
 import { describe, expect, it } from 'vitest';
 
-import { stepNode } from './nodeHandlers.js';
+import { formatHandoffMessage, stepNode } from './nodeHandlers.js';
 
 const edge = (id: string, to: string, condition?: string): Edge => ({
   id,
@@ -120,6 +120,81 @@ describe('stepNode — assign_to_team', () => {
     expect(result.botMessages).toEqual(['Transferring you to the Sales team…']);
     expect(result.events).toEqual([{ type: 'handoff', nodeId: 'n4', team: 'Sales' }]);
     expect(result.advance).toEqual({ kind: 'terminal', status: 'handed_off' });
+  });
+
+  it('keeps the raw team name on the handoff event even when the message is sanitised', () => {
+    // The trace event is the source of truth for downstream analytics, so we
+    // intentionally do NOT mutate `team` on the way out — only the customer-
+    // facing transcript line is cleaned up.
+    const noisyTeam: Node = { ...assign, config: { team: 'Sales Agent' } };
+    const result = stepNode(noisyTeam, { outgoingEdges: [] });
+    expect(result.botMessages).toEqual(['Transferring you to the Sales team…']);
+    expect(result.events).toEqual([{ type: 'handoff', nodeId: 'n4', team: 'Sales Agent' }]);
+  });
+});
+
+describe('formatHandoffMessage', () => {
+  it('uses a plain team name verbatim with a trailing "team"', () => {
+    expect(formatHandoffMessage('Sales')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Billing')).toBe('Transferring you to the Billing team…');
+  });
+
+  it('strips a redundant " Agent" / " Agents" suffix so the message never reads as "Sales Agent team"', () => {
+    // This is the exact bug a real LLM run produced — the team name was
+    // "Sales Agent", which made the customer-facing line ambiguous ("agent"
+    // overloads with "AI agent"). Sanitising at the boundary keeps the
+    // message safe regardless of what the model chose.
+    expect(formatHandoffMessage('Sales Agent')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Billing Agents')).toBe('Transferring you to the Billing team…');
+  });
+
+  it('strips a redundant " Team" / " Teams" suffix so the message never reads as "Sales team team"', () => {
+    expect(formatHandoffMessage('Sales Team')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Support Teams')).toBe('Transferring you to the Support…');
+  });
+
+  it('strips a redundant " Bot" / " Department" / " Dept." suffix', () => {
+    expect(formatHandoffMessage('Sales Bot')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Sales Department')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Sales Dept.')).toBe('Transferring you to the Sales team…');
+    expect(formatHandoffMessage('Sales Dept')).toBe('Transferring you to the Sales team…');
+  });
+
+  it('does NOT append "team" when the name already names a group ("Support", "Help Desk", "Customer Service")', () => {
+    // "Help Desk team" reads worse than "Help Desk" — the noun-phrase
+    // already identifies a queue, so we use it as-is.
+    expect(formatHandoffMessage('Customer Support')).toBe(
+      'Transferring you to the Customer Support…',
+    );
+    expect(formatHandoffMessage('Help Desk')).toBe('Transferring you to the Help Desk…');
+    expect(formatHandoffMessage('Sales Squad')).toBe('Transferring you to the Sales Squad…');
+    expect(formatHandoffMessage('Customer Service')).toBe(
+      'Transferring you to the Customer Service…',
+    );
+  });
+
+  it('is case-insensitive when matching suffixes / group keywords', () => {
+    expect(formatHandoffMessage('sales AGENT')).toBe('Transferring you to the sales team…');
+    expect(formatHandoffMessage('customer support')).toBe(
+      'Transferring you to the customer support…',
+    );
+  });
+
+  it('falls back to a generic "human teammate" line for empty / whitespace / suffix-only inputs', () => {
+    // These are pathological inputs (the LLM going off-script or a hand-edited
+    // flow with an empty config). The customer should never see "Transferring
+    // you to the  team…" with a hole in the middle.
+    expect(formatHandoffMessage('')).toBe('Transferring you to a human teammate…');
+    expect(formatHandoffMessage('   ')).toBe('Transferring you to a human teammate…');
+    expect(formatHandoffMessage('Team')).toBe('Transferring you to a human teammate…');
+    expect(formatHandoffMessage('Agents')).toBe('Transferring you to a human teammate…');
+  });
+
+  it('preserves multi-word team names that do NOT carry a suffix', () => {
+    expect(formatHandoffMessage('Customer Success')).toBe(
+      'Transferring you to the Customer Success team…',
+    );
+    expect(formatHandoffMessage('Tier 2')).toBe('Transferring you to the Tier 2 team…');
   });
 });
 

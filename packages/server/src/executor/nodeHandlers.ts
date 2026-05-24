@@ -3,6 +3,55 @@ import type { Edge, Node, SimulationEvent } from 'shared';
 import { matchBranch } from './branchMatcher.js';
 
 /**
+ * Build the customer-facing handoff line from a `team` field that the LLM
+ * (or a hand-edited flow) put on an `assign_to_team` node.
+ *
+ * Why this exists: a literal template `"the ${team} team"` reads badly
+ * when the LLM picks a name that already implies a group ("Sales Agent",
+ * "Support Team", "Help Desk"). Real example we hit during testing:
+ * `team = "Sales Agent"` → `"Transferring you to the Sales Agent team…"`
+ * which makes the recipient wonder whether they're being handed to an AI
+ * agent or a human queue. We normalise here so the message is always
+ * unambiguous regardless of what name the model produced.
+ *
+ * Rules:
+ *   1. Strip role / group suffixes the template would double up on
+ *      (Agent, Agents, Team, Teams, Bot, Bots, Department / Dept.).
+ *   2. If the cleaned name already names a group ("Customer Support",
+ *      "Help Desk", "Sales Squad"), use it as-is — appending "team"
+ *      would produce "Help Desk team…", which is worse.
+ *   3. Empty / whitespace-only names fall back to a generic "a human
+ *      teammate" line so the customer is never told they're being
+ *      transferred to literal nothing.
+ *
+ * The raw `team` value is still emitted on the `handoff` event for
+ * trace fidelity — sanitisation is a presentation concern only.
+ */
+export function formatHandoffMessage(rawTeam: string): string {
+  const trimmed = rawTeam.trim();
+  if (trimmed.length === 0) {
+    return 'Transferring you to a human teammate…';
+  }
+  // Strip trailing role/group noise the template would otherwise duplicate.
+  // The `(?:^|\s+)` anchor lets us also strip the noise word when it is the
+  // *entire* input (e.g. raw `team` was just "Team" or "Agents") — that
+  // degenerate case then drops through to the generic fallback below.
+  const stripped = trimmed
+    .replace(/(?:^|\s+)(agents?|teams?|bots?|dept\.?|departments?)\s*$/i, '')
+    .trim();
+  if (stripped.length === 0) {
+    // e.g. raw `team` was literally "Team" or "Agents" — degrade gracefully.
+    return 'Transferring you to a human teammate…';
+  }
+  // Already a self-contained group name (Customer Support, Help Desk, …)
+  // → don't append "team".
+  if (/\b(support|desk|squad|crew|service)\b/i.test(stripped)) {
+    return `Transferring you to the ${stripped}…`;
+  }
+  return `Transferring you to the ${stripped} team…`;
+}
+
+/**
  * Pure-function step result returned by every node handler. The orchestrator
  * (`FlowExecutor`) is responsible for applying the `advance` directive — the
  * handlers themselves never touch the session or the store.
@@ -58,7 +107,9 @@ export function stepNode(node: Node, ctx: NodeContext): NodeStepResult {
     case 'assign_to_team': {
       const team = node.config.team;
       return {
-        botMessages: [`Transferring you to the ${team} team…`],
+        botMessages: [formatHandoffMessage(team)],
+        // Trace event keeps the raw `team` value so downstream logs /
+        // analytics see exactly what the flow author named the queue.
         events: [{ type: 'handoff', nodeId: node.id, team }],
         advance: { kind: 'terminal', status: 'handed_off' },
       };

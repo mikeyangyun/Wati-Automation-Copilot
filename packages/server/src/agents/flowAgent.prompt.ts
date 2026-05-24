@@ -27,7 +27,8 @@ Rules:
 4. expectedReplies must contain ONE entry per distinct choice — the human-readable label only. Do NOT add a separate numeric alias for the same choice (no "1", "Billing", "2", "Technical Support"). The choice is a single string the user taps or types. If you want a number-prefixed menu, encode it inside one entry (e.g. "1. Billing"), never as two entries.
 5. The question text in ask_question.text should NOT instruct the user to "reply with the number or name" — quick-reply chips are rendered for each entry in expectedReplies, so the user picks one directly. Phrase the question naturally (e.g. "Which department do you need?").
 6. Edge "condition" labels for ask_question branches must match an expectedReplies entry exactly (case-sensitive), or be "fallback".
-7. Output only the JSON object, no surrounding text or fences.
+7. For assign_to_team nodes, use a short plain team name: "Sales", "Billing", "Support", "Customer Success", "Tier 2", etc. Do NOT append role / group suffixes like " Agent", " Agents", " Team", " Teams", " Bot", " Department" — the customer-facing handoff line adds "team" automatically, and suffixes like "Agent" make the message read as "is this an AI or a human?".
+8. Output only the JSON object, no surrounding text or fences.
 
 Example of a well-formed ask_question with branching:
 {
