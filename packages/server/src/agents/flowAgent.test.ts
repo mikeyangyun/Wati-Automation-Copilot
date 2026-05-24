@@ -86,6 +86,29 @@ describe('FlowAgent.generate — retry semantics (AC3, AC4)', () => {
     expect(provider.callCount).toBe(2);
   });
 
+  it('attaches a snippet of the malformed JSON around the failure point', async () => {
+    // Realistic shape of the bug operators were hitting: a long valid-looking
+    // JSON body that breaks because the model forgot to escape an inner
+    // quote in a `text` value. The snippet must point at *that* substring,
+    // not the start of the document, or the diagnostic is useless.
+    const malformed =
+      '{"name":"Test","trigger":{"type":"new_message"},"entryNodeId":"n0","nodes":[{"id":"n0","type":"send_message","label":"Hi","config":{"text":"Don"t worry, the bot is here"}}],"edges":[]}';
+    const provider = new MockLLMProvider([malformed, malformed]);
+    const agent = new FlowAgent({ provider, now: fixedNow });
+    try {
+      await agent.generate('hi');
+      throw new Error('expected agent.generate to reject');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      expect(msg).toContain('JSON parse failed');
+      expect(msg).toContain('near:');
+      // The window radius is 40 chars on each side of the failure offset;
+      // the offending token "Don" appears inside that window, so the
+      // operator can tell at a glance that an unescaped quote is the cause.
+      expect(msg).toMatch(/Don/);
+    }
+  });
+
   it('honours maxRetry=0 (one attempt only)', async () => {
     const provider = new MockLLMProvider(['nope']);
     const agent = new FlowAgent({ provider, maxRetry: 0, now: fixedNow });

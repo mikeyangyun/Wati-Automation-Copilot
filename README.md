@@ -6,7 +6,7 @@
 
 ## Status
 
-**Implementation complete.** All product surfaces are implemented end-to-end and covered by 554 automated tests (73 shared / 225 server / 256 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
+**Implementation complete.** All product surfaces are implemented end-to-end and covered by 578 automated tests (73 shared / 249 server / 256 web). For the take-home submission summary — what was built, the architecture decisions, and the demo video — see [WRITEUP.md](./WRITEUP.md).
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
@@ -247,7 +247,7 @@ All settings come from environment variables, parsed once at boot by a single ty
 | `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                                                                           |
 | `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                                                                           |
 | `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                                                                          |
-| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin                                                                                                          |
+| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin(s). Comma-separated; trailing slashes stripped automatically (browser `Origin` is bare host).            |
 | `NODE_ENV`             | `development`           | no                                                      | `development`, `test`, or `production`. `test` exempts `LLM_API_KEY` from being required.                                   |
 
 A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.

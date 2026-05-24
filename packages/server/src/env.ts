@@ -11,12 +11,37 @@ const optionalNonEmpty = z.preprocess(
   z.string().min(1).optional(),
 );
 
+/**
+ * Normalise a `CORS_ORIGIN` env string into the array shape `@fastify/cors`
+ * matches against. Three operations, each motivated by a real prod incident:
+ *
+ *   1. Split on `,` so multiple origins (preview deploy + prod + custom domain)
+ *      can coexist in a single env var. Render / Vercel UIs make multi-line
+ *      values awkward, CSV stays single-line.
+ *   2. Strip any trailing `/` — browsers' `Origin` header is bare host (no path,
+ *      no trailing slash), and a misconfigured `https://app.example.com/` would
+ *      otherwise fail the byte-for-byte string match silently and surface as a
+ *      `Failed to fetch` in the SPA. Cheap to forgive.
+ *   3. Drop empties so `","` or `"a,, b"` doesn't accidentally allow blanks.
+ *
+ * Wildcard `*` is preserved as a literal — `@fastify/cors` understands it.
+ */
+const corsOriginList = z
+  .string()
+  .default('http://localhost:5173')
+  .transform((raw) =>
+    raw
+      .split(',')
+      .map((s) => s.trim().replace(/\/+$/, ''))
+      .filter((s) => s.length > 0),
+  );
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
-    CORS_ORIGIN: z.string().default('http://localhost:5173'),
+    CORS_ORIGIN: corsOriginList,
 
     LLM_PROVIDER: z.string().default('deepseek'),
     // Heavy / quality model — used by FlowAgent (Generate) and ReviewAgent.review.

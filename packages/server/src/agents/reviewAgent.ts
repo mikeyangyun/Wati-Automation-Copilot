@@ -129,7 +129,11 @@ export class ReviewAgent implements FlowReviewer {
     for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
       let raw: string;
       try {
-        raw = await this.provider.complete({ messages });
+        // jsonMode for the review path — review returns a strict
+        // SemanticIssue[] schema. Explain stays prose so we do NOT pass
+        // jsonMode there. Prompt mentions "JSON" (8x — checked), so
+        // DeepSeek's must-mention-JSON precondition is satisfied.
+        raw = await this.provider.complete({ messages, jsonMode: true });
       } catch (err) {
         lastIssue = `transport: ${describeProviderError(err)}`;
         continue;

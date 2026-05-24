@@ -6,6 +6,7 @@ import { detectDuplicateConditions } from './rules/duplicateCondition.js';
 import { detectMissingEntry } from './rules/missingEntry.js';
 import { detectMissingFallback } from './rules/missingFallback.js';
 import { detectUnreachableNodes } from './rules/unreachableNode.js';
+import { detectUnreachableReplies } from './rules/unreachableReply.js';
 import { validateFlow } from './structuralValidator.js';
 
 /**
@@ -252,13 +253,141 @@ describe('detectDuplicateConditions', () => {
   });
 });
 
+describe('detectUnreachableReplies', () => {
+  /**
+   * Build a buyer / seller flow where the `ask_question` node has explicit
+   * `expectedReplies`. The default is "everything is wired correctly" — each
+   * test mutates from this baseline so the precondition is loud and local.
+   */
+  function flowWithReplies(replies: string[]): Flow {
+    const base = completeFlow();
+    const idx = base.nodes.findIndex((n) => n.id === 'n_ask');
+    base.nodes[idx] = {
+      id: 'n_ask',
+      type: 'ask_question',
+      label: 'Ask buyer/seller',
+      config: { text: 'Are you a buyer or a seller?', expectedReplies: replies },
+    };
+    return base;
+  }
+
+  it('does not fire when every expected reply has a matching outgoing edge condition', () => {
+    // Edges `e_buy` / `e_sell` already have conditions "buyer" / "seller";
+    // exposing them as chips is a faithful contract.
+    expect(detectUnreachableReplies(flowWithReplies(['buyer', 'seller']))).toEqual([]);
+  });
+
+  it('matches case-insensitively and trims whitespace (matches branchMatcher.normalise)', () => {
+    // Chip text "  BUYER  " — different case, surrounding whitespace — still
+    // routes to the "buyer" edge at runtime, so the rule must agree.
+    expect(detectUnreachableReplies(flowWithReplies(['  BUYER  ', 'Seller']))).toEqual([]);
+  });
+
+  it('fires when a single reply is unmatched, listing only that reply in the message', () => {
+    const issues = detectUnreachableReplies(flowWithReplies(['buyer', 'seller', 'VIP']));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      severity: 'warning',
+      code: 'UNREACHABLE_REPLY',
+      nodeIds: ['n_ask'],
+    });
+    expect(issues[0]!.message).toContain('"VIP"');
+    expect(issues[0]!.message).not.toContain('"buyer"');
+    expect(issues[0]!.message).toContain('that chip');
+  });
+
+  it('aggregates multiple unmatched replies into a single issue per source node', () => {
+    // 3 chips are wrong; we want ONE issue (not 3) to keep the review panel
+    // from drowning a single misconfigured node in repetitive findings.
+    const issues = detectUnreachableReplies(flowWithReplies(['x', 'y', 'z']));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.message).toContain('"x"');
+    expect(issues[0]!.message).toContain('"y"');
+    expect(issues[0]!.message).toContain('"z"');
+    expect(issues[0]!.message).toContain('those chips');
+  });
+
+  it('does not fire for ask_question nodes without an expectedReplies array', () => {
+    // The baseline `completeFlow()` has an `ask_question` with no
+    // `expectedReplies` — free-text mode, no chips to validate.
+    expect(detectUnreachableReplies(completeFlow())).toEqual([]);
+  });
+
+  it('does not fire when expectedReplies is an empty array', () => {
+    // `expectedReplies: []` means "no chips offered" — there's nothing for
+    // the chat UI to render and nothing for the rule to check.
+    expect(detectUnreachableReplies(flowWithReplies([]))).toEqual([]);
+  });
+
+  it('does not fire for non-ask_question nodes (condition / send_message etc.)', () => {
+    // `condition` nodes branch on upstream state, not on chips, and the LLM
+    // is documented to leave their config empty — this rule must stay
+    // narrowly scoped to ask_question.
+    const flow: Flow = {
+      ...completeFlow(),
+      nodes: [
+        { id: 'n_start', type: 'trigger', label: 'Start', config: {} },
+        { id: 'n_cond', type: 'condition', label: 'Branch', config: {} },
+        { id: 'n_end', type: 'assign_to_team', label: 'End', config: { team: 'Support' } },
+      ],
+      edges: [
+        { id: 'e0', from: 'n_start', to: 'n_cond' },
+        { id: 'e1', from: 'n_cond', to: 'n_end', condition: 'x' },
+      ],
+      entryNodeId: 'n_start',
+    };
+    expect(detectUnreachableReplies(flow)).toEqual([]);
+  });
+
+  it('treats the literal "fallback" edge condition as not a real chip match', () => {
+    // The branchMatcher reserves `condition === 'fallback'` for the catch-all
+    // path and skips it during exact match. A flow whose only outgoing
+    // condition is "fallback" therefore has zero reply-matching capacity —
+    // every chip is unreachable.
+    const flow = flowWithReplies(['buyer']);
+    flow.edges = flow.edges
+      .filter((e) => e.id !== 'e_buy' && e.id !== 'e_sell')
+      .concat({ id: 'e_fb', from: 'n_ask', to: 'n_fallback', condition: 'fallback' });
+    const issues = detectUnreachableReplies(flow);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.message).toContain('"buyer"');
+  });
+
+  it('reports each misconfigured ask_question independently when multiple coexist', () => {
+    // Two distinct ask_question nodes, one happy and one broken. The broken
+    // one should produce its own issue without poisoning the happy one.
+    const flow = flowWithReplies(['buyer', 'seller']);
+    flow.nodes.push({
+      id: 'n_ask2',
+      type: 'ask_question',
+      label: 'Ask region',
+      config: { text: 'Where are you?', expectedReplies: ['Europe'] },
+    });
+    flow.edges.push({ id: 'e2', from: 'n_ask2', to: 'n_sales', condition: 'asia' });
+
+    const issues = detectUnreachableReplies(flow);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.nodeIds).toEqual(['n_ask2']);
+    expect(issues[0]!.message).toContain('"Europe"');
+  });
+});
+
 describe('validateFlow — aggregator integration', () => {
-  it('preserves rule order: entry → dangling → unreachable → fallback → duplicates', () => {
+  it('preserves rule order: entry → dangling → unreachable → fallback → duplicates → unreachable replies', () => {
     const flow = completeFlow();
     flow.entryNodeId = 'n_ghost';
     flow.edges.push({ id: 'e_bad', from: 'n_ask', to: 'n_phantom', condition: 'maybe' });
     flow.edges.push({ id: 'e_dup', from: 'n_ask', to: 'n_sales', condition: 'buyer' });
     flow.edges = flow.edges.filter((e) => e.id !== 'e_default');
+    // Add an expectedReply that won't match any edge so UNREACHABLE_REPLY
+    // also lands in the same aggregated run.
+    const askIdx = flow.nodes.findIndex((n) => n.id === 'n_ask');
+    flow.nodes[askIdx] = {
+      id: 'n_ask',
+      type: 'ask_question',
+      label: 'Ask buyer/seller',
+      config: { text: 'Are you a buyer or a seller?', expectedReplies: ['Ghost'] },
+    };
 
     const issues = validateFlow(flow);
     const codes = issues.map((i) => i.code);
@@ -266,5 +395,10 @@ describe('validateFlow — aggregator integration', () => {
     expect(codes).toContain('DANGLING_EDGE');
     expect(codes).toContain('MISSING_FALLBACK');
     expect(codes).toContain('DUPLICATE_CONDITION');
+    expect(codes).toContain('UNREACHABLE_REPLY');
+    // UNREACHABLE_REPLY runs last so its index is greater than DUPLICATE_CONDITION's.
+    expect(codes.indexOf('UNREACHABLE_REPLY')).toBeGreaterThan(
+      codes.indexOf('DUPLICATE_CONDITION'),
+    );
   });
 });

@@ -205,13 +205,14 @@ The `ReviewResult` shape is `{ issues: Issue[], summary: string }` where `summar
 
 **Structural (validator) — deterministic, LLM-free:**
 
-| Code                  | Severity  | When                                                                              |
-| --------------------- | --------- | --------------------------------------------------------------------------------- |
-| `MISSING_ENTRY`       | `error`   | `entryNodeId` does not match any node in the flow                                 |
-| `DANGLING_EDGE`       | `error`   | Edge references a non-existent `from` or `to` node                                |
-| `UNREACHABLE_NODE`    | `warning` | Node not reachable via BFS from the entry node                                    |
-| `MISSING_FALLBACK`    | `warning` | `ask_question` / `condition` has no default (unconditioned) outgoing edge         |
-| `DUPLICATE_CONDITION` | `warning` | Same source node has multiple outgoing edges with the same normalized `condition` |
+| Code                  | Severity  | When                                                                                                                                                                                                          |
+| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MISSING_ENTRY`       | `error`   | `entryNodeId` does not match any node in the flow                                                                                                                                                             |
+| `DANGLING_EDGE`       | `error`   | Edge references a non-existent `from` or `to` node                                                                                                                                                            |
+| `UNREACHABLE_NODE`    | `warning` | Node not reachable via BFS from the entry node                                                                                                                                                                |
+| `MISSING_FALLBACK`    | `warning` | `ask_question` / `condition` has no default (unconditioned) outgoing edge                                                                                                                                     |
+| `DUPLICATE_CONDITION` | `warning` | Same source node has multiple outgoing edges with the same normalized `condition`                                                                                                                             |
+| `UNREACHABLE_REPLY`   | `warning` | An `ask_question` advertises an `expectedReplies` chip whose label has no matching outgoing edge `condition` (case-insensitive, trimmed). Tapping the chip would silently fall through to the default branch. |
 
 **Semantic (`ReviewAgent`) — LLM-driven:**
 

@@ -5,6 +5,7 @@ import { detectDuplicateConditions } from './rules/duplicateCondition.js';
 import { detectMissingEntry } from './rules/missingEntry.js';
 import { detectMissingFallback } from './rules/missingFallback.js';
 import { detectUnreachableNodes } from './rules/unreachableNode.js';
+import { detectUnreachableReplies } from './rules/unreachableReply.js';
 
 /**
  * Deterministic structural validation of a flow.
@@ -14,7 +15,8 @@ import { detectUnreachableNodes } from './rules/unreachableNode.js';
  * audit and test. The aggregator is the single entry point for callers.
  *
  * Returned issues are ordered by rule (entry → dangling → reachable →
- * fallback → duplicates) which keeps the output stable across runs.
+ * fallback → duplicates → unreachable replies) which keeps the output stable
+ * across runs.
  */
 export function validateFlow(flow: Flow): Issue[] {
   return [
@@ -23,5 +25,6 @@ export function validateFlow(flow: Flow): Issue[] {
     ...detectUnreachableNodes(flow),
     ...detectMissingFallback(flow),
     ...detectDuplicateConditions(flow),
+    ...detectUnreachableReplies(flow),
   ];
 }

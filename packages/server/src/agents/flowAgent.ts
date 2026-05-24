@@ -54,7 +54,13 @@ export class FlowAgent implements FlowGenerator {
     for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
       let raw: string;
       try {
-        raw = await this.provider.complete({ messages });
+        // jsonMode keeps DeepSeek's decoder honest — without it we'd
+        // periodically see a malformed-JSON parse failure on attempt 1
+        // (typically an unescaped quote inside a `text` field) and burn a
+        // whole retry round. The flowAgent system prompt already says
+        // "respond with exactly one JSON object" so the provider's
+        // "must mention JSON" precondition holds.
+        raw = await this.provider.complete({ messages, jsonMode: true });
       } catch (err) {
         // Transport / provider failure → no retry (per AC5).
         throw new AppError(
@@ -119,9 +125,18 @@ function tryParseDraft(raw: string): ParseOk | ParseFail {
   try {
     json = JSON.parse(stripped);
   } catch (err) {
+    const baseMsg = err instanceof Error ? err.message : String(err);
+    // Pull a small window of source bytes around the parse failure point
+    // so a single error log is enough to diagnose the malformed output
+    // without re-running with a debugger attached. Position is encoded
+    // by V8 as `at position <n>`; if we can't extract it we just degrade
+    // to the original parser message.
+    const snippet = parseFailureSnippet(stripped, baseMsg);
     return {
       ok: false,
-      issue: `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+      issue: snippet
+        ? `JSON parse failed: ${baseMsg} — near: ${snippet}`
+        : `JSON parse failed: ${baseMsg}`,
     };
   }
 
@@ -130,6 +145,21 @@ function tryParseDraft(raw: string): ParseOk | ParseFail {
     return { ok: false, issue: result.error.message };
   }
   return { ok: true, value: result.data };
+}
+
+const PARSE_POSITION_RE = /position (\d+)/;
+const PARSE_SNIPPET_RADIUS = 40;
+
+function parseFailureSnippet(source: string, message: string): string | null {
+  const match = PARSE_POSITION_RE.exec(message);
+  if (!match) return null;
+  const pos = Number.parseInt(match[1]!, 10);
+  if (!Number.isFinite(pos)) return null;
+  const start = Math.max(0, pos - PARSE_SNIPPET_RADIUS);
+  const end = Math.min(source.length, pos + PARSE_SNIPPET_RADIUS);
+  // Compact whitespace so the snippet stays single-line in logs.
+  const slice = source.slice(start, end).replace(/\s+/g, ' ').trim();
+  return slice.length > 0 ? `"${slice}"` : null;
 }
 
 function stripFences(raw: string): string {

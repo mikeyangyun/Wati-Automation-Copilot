@@ -46,7 +46,7 @@ describe('DeepSeekProvider — complete', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
-  it('serialises model + messages + temperature in the body', async () => {
+  it('serialises model + messages + temperature + max_tokens in the body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(buildOkResponse('ok'));
     const provider = newProvider({ fetch: fetchMock, model: 'deepseek-reasoner' });
     await provider.complete({
@@ -61,6 +61,7 @@ describe('DeepSeekProvider — complete', () => {
       model: string;
       messages: Array<{ role: string; content: string }>;
       temperature: number;
+      max_tokens: number;
     };
     expect(body.model).toBe('deepseek-reasoner');
     expect(body.messages).toEqual([
@@ -68,6 +69,47 @@ describe('DeepSeekProvider — complete', () => {
       { role: 'user', content: 'hi' },
     ]);
     expect(body.temperature).toBe(0);
+    // Default cap — sized empirically against the FlowSchema (see deepseek.ts
+    // DEFAULT_MAX_TOKENS); this assertion is what stops a future "oh just
+    // remove the cap" diff from sliding through review.
+    expect(body.max_tokens).toBe(2048);
+  });
+
+  it('honours an explicit maxTokens override in the body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(buildOkResponse('ok'));
+    const provider = newProvider({ fetch: fetchMock, maxTokens: 512 });
+    await provider.complete({ messages: [{ role: 'user', content: 'hi' }] });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { max_tokens: number };
+    expect(body.max_tokens).toBe(512);
+  });
+
+  it('omits response_format when jsonMode is not requested', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(buildOkResponse('ok'));
+    const provider = newProvider({ fetch: fetchMock });
+    await provider.complete({ messages: [{ role: 'user', content: 'hi' }] });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { response_format?: unknown };
+    // Explain path must NOT carry response_format — DeepSeek's JSON mode
+    // would otherwise force the markdown summarisation into a JSON envelope.
+    expect(body.response_format).toBeUndefined();
+  });
+
+  it('sends response_format: json_object when jsonMode is true', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(buildOkResponse('{"ok":true}'));
+    const provider = newProvider({ fetch: fetchMock });
+    await provider.complete({
+      messages: [{ role: 'user', content: 'return JSON only' }],
+      jsonMode: true,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      response_format?: { type: string };
+    };
+    expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
   it('honours a custom baseUrl', async () => {

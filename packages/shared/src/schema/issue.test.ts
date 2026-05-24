@@ -52,6 +52,7 @@ describe('IssueSchema', () => {
         'MISSING_FALLBACK',
         'DUPLICATE_CONDITION',
         'DANGLING_EDGE',
+        'UNREACHABLE_REPLY',
         'MISSING_BRANCH',
         'AMBIGUOUS_ROUTING',
         'UNCLEAR_QUESTION',

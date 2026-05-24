@@ -7,7 +7,7 @@ describe('parseEnv — defaults and coercion', () => {
     const env = parseEnv({ NODE_ENV: 'test' });
     expect(env.PORT).toBe(3000);
     expect(env.LOG_LEVEL).toBe('info');
-    expect(env.CORS_ORIGIN).toBe('http://localhost:5173');
+    expect(env.CORS_ORIGIN).toEqual(['http://localhost:5173']);
     expect(env.LLM_PROVIDER).toBe('deepseek');
     expect(env.LLM_MODEL).toBe('deepseek-v4-pro');
     // LLM_FAST_MODEL has no default — undefined means "reuse LLM_MODEL".
@@ -79,6 +79,45 @@ describe('parseEnv — LLM_API_KEY requirement', () => {
       expect(fieldErrors.LLM_API_KEY).toBeDefined();
       expect(fieldErrors.LLM_API_KEY?.[0]).toMatch(/LLM_API_KEY/i);
     }
+  });
+});
+
+describe('parseEnv — CORS_ORIGIN normalisation', () => {
+  it('parses a single origin into a one-element array', () => {
+    const env = parseEnv({ NODE_ENV: 'test', CORS_ORIGIN: 'https://app.example.com' });
+    expect(env.CORS_ORIGIN).toEqual(['https://app.example.com']);
+  });
+
+  it('strips a trailing slash so it matches the bare browser Origin header', () => {
+    const env = parseEnv({ NODE_ENV: 'test', CORS_ORIGIN: 'https://app.example.com/' });
+    expect(env.CORS_ORIGIN).toEqual(['https://app.example.com']);
+  });
+
+  it('strips multiple trailing slashes', () => {
+    const env = parseEnv({ NODE_ENV: 'test', CORS_ORIGIN: 'https://app.example.com///' });
+    expect(env.CORS_ORIGIN).toEqual(['https://app.example.com']);
+  });
+
+  it('splits a comma-separated value and trims surrounding whitespace', () => {
+    const env = parseEnv({
+      NODE_ENV: 'test',
+      CORS_ORIGIN: 'https://app.example.com, https://preview.example.com/ ,http://localhost:5173',
+    });
+    expect(env.CORS_ORIGIN).toEqual([
+      'https://app.example.com',
+      'https://preview.example.com',
+      'http://localhost:5173',
+    ]);
+  });
+
+  it('drops empty entries', () => {
+    const env = parseEnv({ NODE_ENV: 'test', CORS_ORIGIN: ',,https://app.example.com,, ,' });
+    expect(env.CORS_ORIGIN).toEqual(['https://app.example.com']);
+  });
+
+  it('preserves wildcard "*" as a literal entry', () => {
+    const env = parseEnv({ NODE_ENV: 'test', CORS_ORIGIN: '*' });
+    expect(env.CORS_ORIGIN).toEqual(['*']);
   });
 });
 
