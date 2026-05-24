@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MockLLMProvider } from '../llm/mock.js';
 import { FlowAgent } from './flowAgent.js';
+import { FLOW_AGENT_SYSTEM_PROMPT } from './flowAgent.prompt.js';
 
 const fixedNow = (): string => '2026-05-23T10:00:00Z';
 
@@ -121,6 +122,44 @@ describe('FlowAgent.generate — transport errors (AC5)', () => {
       code: 'LLM_UNAVAILABLE',
     });
     expect(provider.callCount).toBe(1);
+  });
+});
+
+describe('FLOW_AGENT_SYSTEM_PROMPT — expectedReplies guardrails', () => {
+  // Regression: the live LLM was producing `["1", "Billing", "2", "Technical
+  // Support", ...]` because the prompt didn't forbid the number-as-alias
+  // pattern. The chat panel rendered each entry as its own quick-reply chip,
+  // creating duplicate-looking choices. These tests pin the wording so the
+  // rule can't silently disappear during future prompt edits.
+
+  it('forbids splitting one choice into separate numeric + textual entries', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/ONE entry per distinct choice/i);
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(
+      /Do NOT add a separate numeric alias for the same choice/i,
+    );
+  });
+
+  it('explicitly disallows the "reply with the number or name" prefacing pattern', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/reply with the number or name/i);
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/quick-reply chips are rendered/i);
+  });
+
+  it('documents that edge condition labels must mirror expectedReplies (or fallback)', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/match an expectedReplies entry exactly/i);
+  });
+
+  it('shows a concrete well-formed example to anchor the model', () => {
+    // The example must use plain text labels with NO numeric aliases. If a
+    // future edit slips in something like "1", "Billing" pairs, this test
+    // will catch it.
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/"expectedReplies":\s*\[/);
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toContain('"Billing"');
+    // Negative assertion — the example must not contain a standalone numeric
+    // entry like "1" or "2" inside an expectedReplies array.
+    const exampleMatch = FLOW_AGENT_SYSTEM_PROMPT.match(/"expectedReplies":\s*\[([^\]]*)\]/);
+    expect(exampleMatch).not.toBeNull();
+    const exampleBody = exampleMatch![1] ?? '';
+    expect(exampleBody).not.toMatch(/"\d+"/);
   });
 });
 
