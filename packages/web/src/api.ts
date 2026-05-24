@@ -183,8 +183,16 @@ export class ApiClient {
   }
 }
 
-/** Default singleton — components import the standalone functions below. */
-export const apiClient = new ApiClient();
+/**
+ * Default singleton — components import the standalone functions below.
+ *
+ * `VITE_API_BASE_URL` lets production builds bypass any reverse-proxy layer
+ * (e.g. Vercel rewrites with their ~30s edge timeout) and call the API host
+ * directly. Leave it unset in dev so the Vite proxy continues to handle
+ * `/api` and `/health` against `http://localhost:3000`.
+ */
+const envBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
+export const apiClient = new ApiClient(envBaseUrl ? { baseUrl: envBaseUrl } : {});
 
 export const generateFlow = (prompt: string, signal?: AbortSignal): Promise<Flow> =>
   apiClient.generateFlow(prompt, signal);
