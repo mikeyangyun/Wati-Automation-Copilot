@@ -177,4 +177,140 @@ describe('ChatPanel', () => {
       expect(screen.queryByTestId('chat-inline-error')).not.toBeInTheDocument();
     });
   });
+
+  describe('quick-reply chips', () => {
+    it('renders one chip per expectedReply when awaitingInput supplies them', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          awaitingInput: {
+            nodeId: 'n1',
+            text: 'Buyer or seller?',
+            expectedReplies: ['buyer', 'seller'],
+          },
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+
+      const chips = screen.getAllByRole('button', { name: /^(buyer|seller)$/ });
+      expect(chips).toHaveLength(2);
+      expect(chips[0]).toHaveTextContent('buyer');
+      expect(chips[1]).toHaveTextContent('seller');
+    });
+
+    it('submits the chip text as a user message when clicked', async () => {
+      const onStep = vi.fn();
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          awaitingInput: {
+            nodeId: 'n1',
+            text: 'Buyer or seller?',
+            expectedReplies: ['buyer', 'seller'],
+          },
+        }),
+      };
+      const user = userEvent.setup();
+      render(<ChatPanel status={status} onStep={onStep} onReset={vi.fn()} />);
+
+      await user.click(screen.getByRole('button', { name: 'seller' }));
+      expect(onStep).toHaveBeenCalledTimes(1);
+      expect(onStep).toHaveBeenCalledWith('seller');
+    });
+
+    it('disables chips while a step is pending so the user cannot double-fire', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        pending: 'step',
+        envelope: buildEnvelope({
+          awaitingInput: {
+            nodeId: 'n1',
+            text: 'Buyer or seller?',
+            expectedReplies: ['buyer', 'seller'],
+          },
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      for (const chip of screen.getAllByRole('button', { name: /^(buyer|seller)$/ })) {
+        expect(chip).toBeDisabled();
+      }
+    });
+
+    it('renders nothing when expectedReplies is absent from awaitingInput', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          awaitingInput: { nodeId: 'n1', text: 'Free text question' },
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-quickreplies')).not.toBeInTheDocument();
+    });
+
+    it('does not render chips after the conversation reaches a terminal state', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          session: buildSession({ status: 'completed' }),
+          awaitingInput: {
+            nodeId: 'n1',
+            text: 'Buyer or seller?',
+            expectedReplies: ['buyer', 'seller'],
+          },
+        }),
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-quickreplies')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('typing indicator', () => {
+    it('renders a typing bubble in the transcript while a step is pending', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope(),
+        pending: 'step',
+      };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      const typing = screen.getByTestId('chat-typing');
+      expect(typing).toBeInTheDocument();
+      expect(typing).toHaveAttribute('aria-label', 'Bot is typing');
+      // Sits inside the transcript list — visually it's a bot-side bubble.
+      expect(typing.closest('[data-testid="chat-transcript"]')).not.toBeNull();
+    });
+
+    it('does NOT render the typing bubble in steady-state', () => {
+      const status: SimulationStatus = { kind: 'active', envelope: buildEnvelope() };
+      render(<ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />);
+      expect(screen.queryByTestId('chat-typing')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('bubble timestamps', () => {
+    it('exposes each message timestamp as a <time> element so the chrome matches WhatsApp', () => {
+      const status: SimulationStatus = {
+        kind: 'active',
+        envelope: buildEnvelope({
+          session: buildSession({
+            transcript: [
+              {
+                role: 'bot',
+                content: 'Buyer or seller?',
+                nodeId: 'n1',
+                timestamp: '2026-05-23T15:30:00.000Z',
+              },
+            ],
+          }),
+        }),
+      };
+      const { container } = render(
+        <ChatPanel status={status} onStep={vi.fn()} onReset={vi.fn()} />,
+      );
+      const timeEl = container.querySelector('time');
+      expect(timeEl).not.toBeNull();
+      expect(timeEl).toHaveAttribute('datetime', '2026-05-23T15:30:00.000Z');
+      // Format is HH:MM; locale-dependent but always has the colon.
+      expect(timeEl!.textContent).toMatch(/\d{2}:\d{2}/);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import type { Edge, Flow, Node, Session, SimulationEvent } from 'shared';
+import type { AwaitingInput, Edge, Flow, Node, Session, SimulationEvent } from 'shared';
 import { newSessionId } from 'shared';
 
 import { AppError } from '../errors.js';
@@ -22,6 +22,12 @@ export interface ExecutorResult {
   session: Session;
   botMessages: string[];
   events: SimulationEvent[];
+  /**
+   * Present only when `session.status === 'waiting_for_input'` AND the
+   * paused node is an `ask_question`. Lets the chat UI render quick-reply
+   * chips without needing to look up the flow.
+   */
+  awaitingInput?: AwaitingInput;
 }
 
 export interface FlowExecutorOptions {
@@ -118,7 +124,7 @@ export class FlowExecutor {
     }
     session.status = 'waiting_for_input';
     this.store.saveSession(session);
-    return { session, botMessages, events };
+    return withAwaitingInput({ session, botMessages, events }, flow);
   }
 
   reset(sessionId: string): ExecutorResult {
@@ -176,7 +182,7 @@ export class FlowExecutor {
       if (advance.kind === 'wait') {
         session.status = 'waiting_for_input';
         this.store.saveSession(session);
-        return { session, botMessages, events };
+        return withAwaitingInput({ session, botMessages, events }, flow);
       }
 
       if (advance.kind === 'terminal') {
@@ -228,6 +234,24 @@ function mustGetNode(flow: Flow, nodeId: string): Node {
     throw new AppError('INTERNAL', `Node ${nodeId} not found in flow ${flow.id}`, 500);
   }
   return node;
+}
+
+/**
+ * Attach `awaitingInput` to a paused result if and only if the current node
+ * is an `ask_question`. `condition` / `api_call` / `wait` pauses don't take
+ * user input, so the chat UI shouldn't render an input prompt for them.
+ */
+function withAwaitingInput(result: ExecutorResult, flow: Flow): ExecutorResult {
+  if (result.session.status !== 'waiting_for_input') return result;
+  const node = flow.nodes.find((n) => n.id === result.session.currentNodeId);
+  if (!node || node.type !== 'ask_question') return result;
+  const expectedReplies = node.config.expectedReplies;
+  const awaitingInput: AwaitingInput = {
+    nodeId: node.id,
+    text: node.config.text,
+    ...(expectedReplies && expectedReplies.length > 0 ? { expectedReplies } : {}),
+  };
+  return { ...result, awaitingInput };
 }
 
 function outgoingEdges(flow: Flow, nodeId: string): Edge[] {

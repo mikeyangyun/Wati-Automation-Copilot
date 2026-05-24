@@ -3,6 +3,7 @@ import { SeverityEnum } from 'shared';
 import { z } from 'zod';
 
 import { AppError } from '../errors.js';
+import { describeProviderError } from '../llm/providerError.js';
 import type { LLMMessage, LLMProvider } from '../llm/types.js';
 import {
   REVIEW_AGENT_EXPLAIN_SYSTEM_PROMPT,
@@ -72,7 +73,7 @@ export class ReviewAgent implements FlowReviewer {
         raw = await this.provider.complete({ messages });
       } catch (err) {
         // Transport failure counts as an attempt; retry remains bounded by maxRetry.
-        lastIssue = `transport: ${err instanceof Error ? err.message : String(err)}`;
+        lastIssue = `transport: ${describeProviderError(err)}`;
         continue;
       }
 
@@ -115,7 +116,7 @@ export class ReviewAgent implements FlowReviewer {
       try {
         raw = await this.provider.complete({ messages });
       } catch (err) {
-        lastIssue = `transport: ${err instanceof Error ? err.message : String(err)}`;
+        lastIssue = `transport: ${describeProviderError(err)}`;
         continue;
       }
 

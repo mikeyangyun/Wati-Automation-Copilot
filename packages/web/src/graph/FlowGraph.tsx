@@ -6,7 +6,7 @@ import {
   type Edge as RfEdge,
   type Node as RfNode,
 } from '@xyflow/react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Flow, Severity } from 'shared';
 
 import { FLOW_NODE_TYPES, type NodeCardData } from './NodeCard.js';
@@ -51,6 +51,7 @@ export function FlowGraph(props: FlowGraphProps) {
 
 function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphProps) {
   const { fitView } = useReactFlow();
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const selectedSet = useMemo(() => new Set(selectedNodeIds ?? []), [selectedNodeIds]);
   const hasSelection = selectedSet.size > 0;
 
@@ -107,8 +108,32 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
     return () => window.clearTimeout(handle);
   }, [selectedSet, hasSelection, fitView]);
 
+  // Re-fit whenever the container resizes. React Flow's `fitView` prop only
+  // fires once on mount; without this, opening the Explain or Review block
+  // above the graph shrinks the container and pushes the existing viewport
+  // transform off-canvas, leaving an apparently blank graph area. Skipped
+  // when an issue is selected so the explicit selection fit isn't fought.
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    let initial = true;
+    const observer = new ResizeObserver(() => {
+      // Skip the very first callback — `ReactFlow fitView` already ran on mount.
+      if (initial) {
+        initial = false;
+        return;
+      }
+      if (hasSelection) return;
+      fitView({ padding: 0.2 });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fitView, hasSelection]);
+
   return (
-    <div className="flow-graph" data-testid="flow-graph">
+    <div className="flow-graph" data-testid="flow-graph" ref={containerRef}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}

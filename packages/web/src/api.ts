@@ -1,8 +1,10 @@
 import {
+  AwaitingInputSchema,
   FlowSchema,
   IssueSchema,
   SessionSchema,
   SimulationEventSchema,
+  type AwaitingInput,
   type Flow,
   type Issue,
   type IssueCode,
@@ -19,6 +21,7 @@ export const SessionEnvelopeSchema = z.object({
   session: SessionSchema,
   botMessages: z.array(z.string()),
   events: z.array(SimulationEventSchema),
+  awaitingInput: AwaitingInputSchema.optional(),
 });
 export type SessionEnvelope = z.infer<typeof SessionEnvelopeSchema>;
 
@@ -33,7 +36,7 @@ export const ReviewResultSchema = z.object({
 });
 export type ReviewResult = z.infer<typeof ReviewResultSchema>;
 
-export type { Issue, IssueCode, Session, SimulationEvent };
+export type { AwaitingInput, Issue, IssueCode, Session, SimulationEvent };
 
 /**
  * Mirrors the server's error envelope shape: `{ error: { code, message } }`.

@@ -2,6 +2,7 @@ import { FlowSchema, newFlowId, type Flow } from 'shared';
 import { z } from 'zod';
 
 import { AppError } from '../errors.js';
+import { describeProviderError } from '../llm/providerError.js';
 import type { LLMMessage, LLMProvider } from '../llm/types.js';
 import { FLOW_AGENT_SYSTEM_PROMPT, buildUserMessage } from './flowAgent.prompt.js';
 
@@ -56,10 +57,9 @@ export class FlowAgent implements FlowGenerator {
         raw = await this.provider.complete({ messages });
       } catch (err) {
         // Transport / provider failure → no retry (per AC5).
-        const brief = err instanceof Error ? err.message : String(err);
         throw new AppError(
           'LLM_UNAVAILABLE',
-          `LLM provider error: ${brief.slice(0, ISSUE_DETAIL_MAX)}`,
+          `LLM provider error: ${describeProviderError(err).slice(0, ISSUE_DETAIL_MAX)}`,
           502,
         );
       }

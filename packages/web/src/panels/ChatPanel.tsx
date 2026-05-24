@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Message, SimulationEvent } from 'shared';
+import type { AwaitingInput, Message, SimulationEvent } from 'shared';
 
 import type { SessionEnvelope } from '../api.js';
 import type { AppErrorSummary, SimulationStatus } from '../state.js';
@@ -80,14 +80,21 @@ function ActiveChat({
   const [draft, setDraft] = useState('');
   const terminal =
     envelope.session.status === 'completed' || envelope.session.status === 'handed_off';
+  const stepping = pending === 'step';
   const inputDisabled = terminal || pending !== undefined;
+  const awaitingInput = envelope.awaitingInput;
+  const quickReplies = awaitingInput?.expectedReplies;
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const trimmed = draft.trim();
+  const submit = (text: string) => {
+    const trimmed = text.trim();
     if (!trimmed || inputDisabled) return;
     setDraft('');
     onStep(trimmed);
+  };
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submit(draft);
   };
 
   return (
@@ -96,6 +103,19 @@ function ActiveChat({
         {envelope.session.transcript.map((msg, idx) => (
           <Bubble key={`${idx}-${msg.timestamp}`} msg={msg} />
         ))}
+        {stepping && (
+          <li
+            className="chat-bubble chat-bubble-bot chat-bubble-typing"
+            data-testid="chat-typing"
+            aria-label="Bot is typing"
+          >
+            <span className="chat-typing-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </li>
+        )}
       </ul>
 
       {envelope.events.length > 0 && (
@@ -127,6 +147,10 @@ function ActiveChat({
         </div>
       )}
 
+      {!terminal && quickReplies !== undefined && (
+        <QuickReplies replies={quickReplies} disabled={inputDisabled} onPick={submit} />
+      )}
+
       <form className="chat-form" onSubmit={handleSubmit}>
         <input
           type="text"
@@ -135,17 +159,54 @@ function ActiveChat({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={inputDisabled}
-          placeholder={terminal ? 'Conversation ended — Reset to retry' : 'Type a reply…'}
+          placeholder={
+            terminal
+              ? 'Conversation ended — Reset to retry'
+              : quickReplies !== undefined
+                ? 'Pick a quick reply or type your own…'
+                : 'Type a reply…'
+          }
         />
         <button
           type="submit"
           className="chat-send"
           disabled={inputDisabled || draft.trim().length === 0}
         >
-          {pending === 'step' ? 'Sending…' : 'Send'}
+          {stepping ? 'Sending…' : 'Send'}
         </button>
       </form>
     </>
+  );
+}
+
+function QuickReplies({
+  replies,
+  disabled,
+  onPick,
+}: {
+  replies: NonNullable<AwaitingInput['expectedReplies']>;
+  disabled: boolean;
+  onPick: (reply: string) => void;
+}) {
+  return (
+    <div
+      className="chat-quickreplies"
+      data-testid="chat-quickreplies"
+      role="group"
+      aria-label="Quick replies"
+    >
+      {replies.map((reply) => (
+        <button
+          key={reply}
+          type="button"
+          className="chat-quickreply"
+          disabled={disabled}
+          onClick={() => onPick(reply)}
+        >
+          {reply}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -153,8 +214,17 @@ function Bubble({ msg }: { msg: Message }) {
   return (
     <li className={`chat-bubble chat-bubble-${msg.role}`} data-role={msg.role}>
       <span className="chat-bubble-content">{msg.content}</span>
+      <time className="chat-bubble-time" dateTime={msg.timestamp}>
+        {formatBubbleTime(msg.timestamp)}
+      </time>
     </li>
   );
+}
+
+function formatBubbleTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function EventLine({ event }: { event: SimulationEvent }) {

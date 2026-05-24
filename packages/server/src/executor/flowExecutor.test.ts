@@ -327,6 +327,103 @@ describe('FlowExecutor — node-type coverage during auto-run', () => {
   });
 });
 
+describe('FlowExecutor — awaitingInput descriptor', () => {
+  it('attaches awaitingInput on createSession when the entry path lands on ask_question', () => {
+    const { store, executor } = buildExecutor();
+    const flow = buyerSellerFlow();
+    store.saveFlow(flow);
+
+    const result = executor.createSession(flow);
+
+    expect(result.awaitingInput).toEqual({
+      nodeId: 'n1',
+      text: 'Buyer or seller?',
+    });
+  });
+
+  it('includes expectedReplies in awaitingInput when the node supplies them', () => {
+    const { store, executor } = buildExecutor();
+    const flow = flowFromParts(
+      'flow_qr',
+      'n0',
+      [
+        { id: 'n0', type: 'trigger', label: 'start', config: {} },
+        {
+          id: 'n1',
+          type: 'ask_question',
+          label: 'Q',
+          config: { text: 'Pick one', expectedReplies: ['a', 'b', 'c'] },
+        },
+      ],
+      [edge('e0', 'n0', 'n1')],
+    );
+    store.saveFlow(flow);
+
+    const result = executor.createSession(flow);
+
+    expect(result.awaitingInput).toEqual({
+      nodeId: 'n1',
+      text: 'Pick one',
+      expectedReplies: ['a', 'b', 'c'],
+    });
+  });
+
+  it('omits expectedReplies when the node-level array is empty (rather than emitting [])', () => {
+    const { store, executor } = buildExecutor();
+    const flow = flowFromParts(
+      'flow_qr_empty',
+      'n0',
+      [
+        { id: 'n0', type: 'trigger', label: 'start', config: {} },
+        {
+          id: 'n1',
+          type: 'ask_question',
+          label: 'Q',
+          config: { text: 'Free text', expectedReplies: [] },
+        },
+      ],
+      [edge('e0', 'n0', 'n1')],
+    );
+    store.saveFlow(flow);
+
+    const result = executor.createSession(flow);
+
+    expect(result.awaitingInput).toEqual({ nodeId: 'n1', text: 'Free text' });
+    expect(result.awaitingInput).not.toHaveProperty('expectedReplies');
+  });
+
+  it('does not attach awaitingInput on terminal completion', () => {
+    const { store, executor } = buildExecutor();
+    const flow = flowFromParts(
+      'flow_linear',
+      'n0',
+      [
+        { id: 'n0', type: 'trigger', label: 'start', config: {} },
+        { id: 'n1', type: 'send_message', label: 'hi', config: { text: 'Hello.' } },
+      ],
+      [edge('e0', 'n0', 'n1')],
+    );
+    store.saveFlow(flow);
+
+    const result = executor.createSession(flow);
+
+    expect(result.session.status).toBe('completed');
+    expect(result.awaitingInput).toBeUndefined();
+  });
+
+  it('refreshes awaitingInput on a stay-and-retry step', () => {
+    const { store, executor } = buildExecutor();
+    const flow = buyerSellerFlow();
+    store.saveFlow(flow);
+    const { session } = executor.createSession(flow);
+
+    const result = executor.step(session.id, 'maybe');
+
+    expect(result.session.status).toBe('waiting_for_input');
+    expect(result.awaitingInput).toEqual({ nodeId: 'n1', text: 'Buyer or seller?' });
+  });
+});
+
 describe('FlowExecutor — safety caps', () => {
   it('throws AppError(500, INTERNAL) when a cyclic flow trips the 100-step cap', () => {
     const { store, executor } = buildExecutor();
