@@ -131,11 +131,13 @@ A session walks through a Flow step by step in mock chat. Advanced by user messa
 
 ### Endpoints
 
-| Method | URL                              | Body          | Response                           | Status          |
-| ------ | -------------------------------- | ------------- | ---------------------------------- | --------------- |
-| `POST` | `/api/flows/:id/simulate/start`  | —             | `{ session, botMessages }`         | 200 · 404       |
-| `POST` | `/api/simulate/:sessionId/step`  | `{ message }` | `{ session, botMessages, events }` | 200 · 400 · 404 |
-| `POST` | `/api/simulate/:sessionId/reset` | —             | `{ session, botMessages }`         | 200 · 404       |
+All three endpoints return the same envelope shape (`{ session, botMessages, events, awaitingInput? }`); `botMessages` is the slice produced by this turn and `events` are the executor transitions that fired. `awaitingInput` is present only when the session pauses on an `ask_question` node — see [AwaitingInput](#awaitinginput) below.
+
+| Method | URL                              | Body          | Response                                           | Status          |
+| ------ | -------------------------------- | ------------- | -------------------------------------------------- | --------------- |
+| `POST` | `/api/flows/:id/simulate/start`  | —             | `{ session, botMessages, events, awaitingInput? }` | 200 · 404       |
+| `POST` | `/api/simulate/:sessionId/step`  | `{ message }` | `{ session, botMessages, events, awaitingInput? }` | 200 · 400 · 404 |
+| `POST` | `/api/simulate/:sessionId/reset` | —             | `{ session, botMessages, events, awaitingInput? }` | 200 · 404       |
 
 ### Example — `POST /api/simulate/:sessionId/step`
 
@@ -169,6 +171,18 @@ Content-Type: application/json
   "events": [{ "type": "branch", "from": "n2", "to": "n3", "condition": "buyer" }]
 }
 ```
+
+### AwaitingInput
+
+Optional sidecar in every simulation envelope. Set only when the session is `waiting_for_input` at an `ask_question` node, so the chat UI can render the question text and any predefined replies as quick-reply chips without needing to walk the full Flow.
+
+| Field             | Type     | Description                                                                                                                                        |
+| ----------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nodeId`          | string   | Node the session is currently paused on                                                                                                            |
+| `text`            | string   | Question text to show as the most recent bot message / heading                                                                                     |
+| `expectedReplies` | string[] | Optional list of expected replies. When present, the array always has at least one entry — empty arrays are filtered out at the executor boundary. |
+
+When the session is in any other status (e.g. `running`, `handed_off`, `completed`), `awaitingInput` is omitted.
 
 ---
 

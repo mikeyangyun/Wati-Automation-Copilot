@@ -92,26 +92,26 @@ Expected review findings: missing support branch, no fallback for ambiguous repl
 
 ### 4.1 Overview
 
-The journey has four phases: **Describe → Design → Validate → Simulate**. Users may loop back to regeneration if review or simulation surfaces issues.
+The mental model has four user-journey stages — **Describe → Design → Validate → Simulate** — which the UI surfaces as a three-step header stepper (**Describe → Flow → Test**); the middle "Flow" step covers both Design (inspect) and Validate (Explain / Review), since both happen on the Flow panel. Users may loop back to regeneration if review or simulation surfaces issues.
 
 ```mermaid
 flowchart TD
-    subgraph Phase1["Phase 1 — Describe"]
+    subgraph Stage1["Describe"]
         A[Enter automation intent in natural language]
     end
 
-    subgraph Phase2["Phase 2 — Design"]
+    subgraph Stage2["Design"]
         B[Generate Wati-style flow]
         C[Inspect flow definition and node graph]
     end
 
-    subgraph Phase3["Phase 3 — Validate"]
+    subgraph Stage3["Validate"]
         D[Request AI explanation]
         E[Run AI review]
     end
 
-    subgraph Phase4["Phase 4 — Simulate"]
-        F[Start mock conversation]
+    subgraph Stage4["Simulate"]
+        F[Click Test Chatbot — session created]
         G[Send simulated user replies]
         H{Outcome acceptable?}
         I[Revise prompt and regenerate]
@@ -132,21 +132,23 @@ flowchart TD
 
 ### 4.2 Step-by-Step Flow
 
-| Step | User action                                           | System response                                                                                                | UI panel      |
-| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------- |
-| 1    | Enter or select a starter prompt                      | —                                                                                                              | Prompt        |
-| 2    | Click **Generate**                                    | Produces structured flow; renders node graph (auto-laid-out)                                                   | Prompt → Flow |
-| 2b   | _(automatic)_                                         | Mock simulation session is created against the new flow; the bot sends its opening message                     | Mock Chat     |
-| 3    | Review the graph or toggle to JSON                    | Read-only artifact available for inspection                                                                    | Flow          |
-| 4    | Click **Explain**                                     | Plain-language markdown summary of trigger, branches, and outcomes                                             | Flow          |
-| 5    | Click **Review**                                      | Issue list with severity (errors, warnings, info); click an issue to highlight the affected nodes in the graph | Flow          |
-| 6    | Type replies (e.g. `buyer`, `seller`)                 | Bot follows branches; shows actions and session state                                                          | Mock Chat     |
-| 7    | Click **Reset**                                       | Clears transcript; restarts from entry node, same session id                                                   | Mock Chat     |
-| 8    | If issues found, edit prompt and click Generate again | New flow + new simulation replaces previous artifact                                                           | Prompt        |
+The header stepper (**Describe → Flow → Test**) advances visually as the user progresses through these steps.
+
+| Step | User action                                                     | System response                                                                                                     | UI surface      |
+| ---- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 1    | Enter or select a starter prompt (or pick a recent)             | Header stepper highlights **Describe**                                                                              | Prompt panel    |
+| 2    | Click **Generate** (or press ⌘+Enter / Ctrl+Enter)              | Produces structured flow; renders node graph (auto-laid-out). Stepper advances to **Flow**.                         | Prompt → Flow   |
+| 3    | Inspect the graph or toggle to JSON                             | Read-only artifact available for inspection                                                                         | Flow panel      |
+| 4    | Click **Explain**                                               | Plain-language markdown summary of trigger, branches, and outcomes                                                  | Flow panel      |
+| 5    | Click **Review**                                                | Issue list with severity (errors, warnings, info); click an issue to highlight the affected nodes in the graph      | Flow panel      |
+| 6    | Click **Test Chatbot**                                          | Floating chat widget opens over the Flow panel and the bot sends its opening message. Stepper advances to **Test**. | Floating widget |
+| 7    | Type replies (e.g. `buyer`, `seller`) or tap a quick-reply chip | Bot follows branches; shows actions and session state                                                               | Floating widget |
+| 8    | Click **Reset** (chat header) or close the widget               | Reset clears transcript and restarts from entry node, same session id. Closing keeps the session for re-open.       | Floating widget |
+| 9    | If issues found, edit prompt and click Generate again           | New flow replaces previous artifact; the chat widget force-closes and the session is discarded                      | Prompt panel    |
 
 ### 4.3 Simulation Sub-Journey
 
-Once simulation starts, the user walks through one or more conversation paths before signing off on the flow.
+Once the user clicks **Test Chatbot**, the floating chat widget opens and the user walks through one or more conversation paths before signing off on the flow. Closing the widget keeps the session intact for re-open; only a fresh **Generate** discards it.
 
 ```mermaid
 sequenceDiagram
@@ -154,22 +156,25 @@ sequenceDiagram
     participant C as Copilot UI
     participant S as Simulation engine
 
-    Note over C,S: Session auto-starts as soon as a flow becomes ready —<br/>no explicit "Start" click is required.
+    Note over U,S: Session is started lazily on the first<br/>Test Chatbot click against a given flow.
+    U->>C: Click "Test Chatbot"
     C->>S: Create session from flow entry
-    S-->>C: Bot: opening question
-    C-->>U: Display bot message
+    S-->>C: Bot: opening question (with optional quick-reply chips)
+    C-->>U: Floating widget shows bot message
 
-    U->>C: Send "buyer"
+    U->>C: Send "buyer" (typed or chip tap)
     C->>S: Match branch and advance
     S-->>C: Bot: routed to Sales
     C-->>U: Show path result
 
-    U->>C: Reset session
+    U->>C: Reset session (chat header)
     C->>S: New session from entry
     S-->>C: Bot: opening question
     U->>C: Send "seller"
     S-->>C: Bot: help article message
     C-->>U: Both paths verified
+
+    Note over U,C: User can close the widget to inspect the graph<br/>and re-open it later — the session persists.
 ```
 
 ### 4.4 Recommended Workflow
@@ -197,15 +202,25 @@ sequenceDiagram
 | **Fallback handling**      | Unmatched input behavior                          | Uses fallback edge when defined; otherwise retry / clarify |
 | **Session reset**          | Reset simulation                                  | Clears transcript and restarts from entry node             |
 
-### 5.2 Post-MVP (P1)
+### 5.2 Delivered post-MVP polish
 
-| Feature                    | Description                                        |
-| -------------------------- | -------------------------------------------------- |
-| UI polish                  | Closer visual alignment with Wati product patterns |
-| Additional starter prompts | Broader scenario coverage                          |
-| Curated example flows      | Quick-start templates for common automations       |
+These items were originally P1 but have shipped:
 
-### 5.3 Explicitly Excluded
+| Feature                    | Description                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI polish                  | Wati-style node cards (colored header, type-specific body preview); 3-step header stepper; PromptPanel with starters, recents, ⌘+Enter hint. |
+| Additional starter prompts | Four menu-driven starters covering ordering, support routing, appointment booking, and insurance intake.                                     |
+| Test Chatbot widget        | Floating, drag-to-resize chat widget over the Flow panel — replaces the always-on chat column. Size persisted in `localStorage`.             |
+| Recent-prompt history      | Last 5 submitted prompts deduped and persisted in `localStorage`, surfaced as one-click recall in the Prompt panel.                          |
+
+### 5.3 Still post-MVP (P1)
+
+| Feature                             | Description                                                          |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| Curated example flows               | Quick-start templates for common automations, not just text prompts. |
+| Persistent storage and flow library | Survive process restart, allow loading prior flows by id.            |
+
+### 5.4 Explicitly Excluded
 
 - Drag-and-drop node editing
 - Publish / deploy
@@ -217,25 +232,32 @@ sequenceDiagram
 
 ## 6. Interface
 
-Three-panel layout: **Prompt** (left) · **Flow** (center) · **Mock Chat** (right).
+Header with the app title and a **Describe → Flow → Test** stepper, over a two-panel layout (**Prompt** left, **Flow** right). A **Mock Chat** widget floats over the Flow panel on demand, opened via the **Test Chatbot** button.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Wati Automation Builder Copilot                             │
-├──────────────┬──────────────────────────────┬────────────────┤
-│ PROMPT       │ FLOW                         │ MOCK CHAT      │
-│ [textarea]   │ [Explain][Review][View JSON] │ transcript     │
-│ [Generate]   │ ┌──────── node graph ──────┐ │ [Send] [Reset] │
-│ examples ▾   │ │  trigger → ask → branch  │ │                │
-│              │ └──────────────────────────┘ │                │
-└──────────────┴──────────────────────────────┴────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  Wati Automation Builder Copilot         ① Describe ─ ② Flow ─ ③ Test │
+├──────────────┬─────────────────────────────────────────────────────┤
+│ PROMPT       │ FLOW                                                │
+│ [textarea]   │ [Explain][Review][View JSON][▶ Test Chatbot]        │
+│ [Generate]   │ ┌─────────── node graph ───────────┐                │
+│ starters ▾   │ │  trigger → ask → branch          │                │
+│ recents ↻    │ │              ┌────────────────┐  │ ← floating     │
+│ ⌘+Enter      │ │              │ MOCK CHAT      │  │   chat widget  │
+│              │ │              │ transcript     │  │   (draggable   │
+│              │ │              │ [Send] [Reset] │  │    resize)     │
+│              │ │              └────────────────┘  │                │
+│              │ └──────────────────────────────────┘                │
+└──────────────┴─────────────────────────────────────────────────────┘
 ```
 
 - One generated flow drives the graph, JSON view, review, and simulation.
 - The Flow panel defaults to **Graph**; toggle to JSON for the raw structure.
 - Users change the flow by editing the prompt and regenerating — not by dragging nodes.
-- **Generate** in Prompt; **Explain** / **Review** / **View JSON** in Flow; **Send** / **Reset** in Mock Chat.
-- Mock Chat auto-starts as soon as a flow is ready — no explicit "Start" button.
+- **Generate** (or ⌘+Enter) in Prompt; **Explain** / **Review** / **View JSON** / **Test Chatbot** in Flow; **Send** / **Reset** / close in the chat widget.
+- The chat widget opens only after Test Chatbot is clicked. Closing it preserves the session; clicking Test Chatbot again re-opens the same conversation. A fresh **Generate** force-closes the widget and discards the session.
+- The widget can be resized by dragging its top-left grip; the chosen size is persisted in `localStorage` across reloads.
+- The most recently submitted prompts (max 5, deduped) are persisted in `localStorage` and surfaced as a one-click **Recent** list below the starters.
 
 ---
 

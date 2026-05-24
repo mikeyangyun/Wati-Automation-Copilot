@@ -6,15 +6,16 @@
 
 ## Status
 
-**Feature complete.** All product surfaces are implemented end-to-end and covered by 418 automated tests:
+**Feature complete.** All product surfaces are implemented end-to-end and covered by 523 automated tests:
 
-- **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`.
-- **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset.
+- **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
+- **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
 - **Explain** — markdown-rendered summary of how a flow behaves.
-- **Hybrid review** — structural rules + semantic LLM analysis, merged by severity, with graceful degradation when the LLM is unavailable.
-- **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle, type-coded nodes, condition labels, and issue → node highlight on click.
+- **Hybrid review** — structural rules + semantic LLM analysis, merged by severity, with graceful degradation when the LLM is unavailable. Click an issue card to highlight the affected nodes on the graph.
+- **Read-only graph** — auto-laid-out React Flow rendering with `Graph` / `JSON` toggle. Wati-style node cards (colored header, type-specific body preview, condition labels on edges) and issue → node highlight on click.
+- **Workflow stepper** — three-step indicator (**Describe → Flow → Test**) in the app header advances as the user progresses, replacing per-panel step labels.
 
-For the product specification, see [PRODUCT.md](./PRODUCT.md).
+For the product specification, see [PRODUCT.md](./PRODUCT.md). For a paste-ready demo script, see [DEMO.md](./DEMO.md).
 
 ---
 
@@ -48,11 +49,11 @@ curl http://localhost:3000/health
 # -> { "status": "ok", "uptime": ..., "timestamp": "..." }
 ```
 
-Open <http://localhost:5173>. The three-panel UI loads:
+Open <http://localhost:5173>. The UI is a header (title + three-step **Describe → Flow → Test** stepper) over a two-panel layout, with a chat widget that floats over the flow panel on demand:
 
-- **Left** — prompt input with starter examples.
-- **Center** — generated flow (graph by default; toggle to JSON), with **Explain** / **Review** actions.
-- **Right** — mock chat that auto-starts a simulation as soon as a flow is ready.
+- **Left — Prompt panel.** Textarea with starter examples, a **Generate** button (also fires on ⌘+Enter / Ctrl+Enter), a one-click **Recent** list backed by `localStorage`, and a soft character-count warning.
+- **Right — Flow panel.** Generated flow rendered as an auto-laid-out, read-only graph with Wati-style node cards (default view; toggle to JSON). Header surfaces **Explain**, **Review**, **View JSON**, and **Test Chatbot** buttons.
+- **Floating chat widget** (over the Flow panel). Opens only after **Test Chatbot** is clicked, persists across closes for the lifetime of the flow, and can be dragged to resize from its top-left grip (size persisted in `localStorage`).
 
 **Other scripts**
 
@@ -141,13 +142,15 @@ See [PRODUCT.md](./PRODUCT.md) for full details and rationale.
 ```
 Wati-Automation-Copilot/
 ├── packages/
-│   ├── shared/                # Zod schema + shared TS types (Flow, Issue, SimulationEvent, …)
+│   ├── shared/                # Zod schema + shared TS types (Flow, Issue, SimulationEvent, AwaitingInput, …)
 │   ├── server/                # Fastify API, agents, executor, structural validator, store
-│   └── web/                   # React + Vite three-panel UI (read-only graph, chat, issue list)
+│   └── web/                   # React + Vite UI: Prompt + Flow panels, floating Test Chatbot widget,
+│                              #   workflow stepper, read-only graph, issue list
 ├── docs/
 │   ├── architecture.md        # Runtime sequence diagrams
 │   └── data-model.md          # Entity fields + REST reference
 ├── .cursor/rules/             # Security and engineering rules
+├── DEMO.md                    # Paste-ready 5-minute demo script
 ├── PRODUCT.md                 # Product specification
 ├── README.md
 └── LICENSE
@@ -164,7 +167,7 @@ Three workspace packages share one Zod schema. The `graph/` subtree in `web` and
 ```mermaid
 flowchart TB
     subgraph web [packages/web]
-        ui[Three-panel UI]
+        ui[Two-panel UI + floating chat widget]
     end
 
     subgraph server [packages/server]
@@ -232,18 +235,19 @@ Scope cuts that were deliberate, not oversights:
 
 All settings come from environment variables, parsed once at boot by a single typed `config` module in `packages/server`. The process fails fast on missing required values; nothing else in the code reads `process.env` directly (see Design Principle 6).
 
-| Variable               | Default                 | Required                                                | Description                                                              |
-| ---------------------- | ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load (`deepseek`, `openai`, ...)          |
-| `LLM_MODEL`            | `deepseek-chat`         | no                                                      | Model id passed to the provider                                          |
-| `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser** |
-| `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                   |
-| `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                     |
-| `LLM_MAX_RETRY`        | `1`                     | no                                                      | Retries when LLM output fails Zod schema parsing                         |
-| `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                        |
-| `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                        |
-| `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                       |
-| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin                                                       |
+| Variable               | Default                 | Required                                                | Description                                                                                                                 |
+| ---------------------- | ----------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`         | `deepseek`              | no                                                      | Which `LLMProvider` adapter to load. Implemented: `deepseek`, `mock`. Adding a vendor is a new case in `createLLMProvider`. |
+| `LLM_MODEL`            | `deepseek-chat`         | no                                                      | Model id passed to the provider                                                                                             |
+| `LLM_API_KEY`          | —                       | **yes** (unless `NODE_ENV=test` or `LLM_PROVIDER=mock`) | Provider API key. **Secret — server-only, never exposed to the browser**                                                    |
+| `LLM_BASE_URL`         | provider default        | no                                                      | Override endpoint (self-hosted, proxy)                                                                                      |
+| `LLM_TIMEOUT_MS`       | `30000`                 | no                                                      | Per-request timeout for the provider                                                                                        |
+| `LLM_MAX_RETRY`        | `1`                     | no                                                      | Retries when LLM output fails Zod schema parsing                                                                            |
+| `SIMULATION_MAX_RETRY` | `2`                     | no                                                      | Question re-asks in mock chat before falling back                                                                           |
+| `PORT`                 | `3000`                  | no                                                      | Fastify HTTP port                                                                                                           |
+| `LOG_LEVEL`            | `info`                  | no                                                      | Pino log level (`trace` … `error`)                                                                                          |
+| `CORS_ORIGIN`          | `http://localhost:5173` | no                                                      | Allowed SPA origin                                                                                                          |
+| `NODE_ENV`             | `development`           | no                                                      | `development`, `test`, or `production`. `test` exempts `LLM_API_KEY` from being required.                                   |
 
 A reference `.env.example` lives at `packages/server/.env.example`. Secret handling and logging hygiene follow [.cursor/rules/security.mdc](./.cursor/rules/security.mdc) — never log API keys, prompts, or user transcripts; log metadata only.
 

@@ -19,14 +19,14 @@ Building or iterating a **Copilot feature** in this repo (not one-line fixes). D
 
 ## Sources of truth (read before TL/Dev)
 
-| Doc | Use for |
-|-----|---------|
-| [PRODUCT.md](../../PRODUCT.md) | Personas, scenarios, in/out scope |
-| [README.md](../../README.md) | Stack, modules, design principles |
-| [docs/data-model.md](../../docs/data-model.md) | Flow/Simulation fields, REST, error codes |
-| [docs/architecture.md](../../docs/architecture.md) | Generate / explain / review / simulate sequences |
-| [.cursor/rules/security.mdc](../../.cursor/rules/security.mdc) | Secrets, env, logging |
-| [.cursor/rules/quality.mdc](../../.cursor/rules/quality.mdc) | Validation, tests, unsafe paths |
+| Doc                                                            | Use for                                          |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| [PRODUCT.md](../../PRODUCT.md)                                 | Personas, scenarios, in/out scope                |
+| [README.md](../../README.md)                                   | Stack, modules, design principles                |
+| [docs/data-model.md](../../docs/data-model.md)                 | Flow/Simulation fields, REST, error codes        |
+| [docs/architecture.md](../../docs/architecture.md)             | Generate / explain / review / simulate sequences |
+| [.cursor/rules/security.mdc](../../.cursor/rules/security.mdc) | Secrets, env, logging                            |
+| [.cursor/rules/quality.mdc](../../.cursor/rules/quality.mdc)   | Validation, tests, unsafe paths                  |
 
 TL and Dev must flag conflicts with these docs and propose updates — do not silently drift.
 
@@ -40,13 +40,13 @@ TL and Dev must flag conflicts with these docs and propose updates — do not si
 
 One agent may run all stages sequentially, or pause after any stage.
 
-| Stage | Role | Output (keep short) |
-|-------|------|---------------------|
-| 1 | BA | Story, In/Out vs MVP table, AC (Given/When/Then), Must/Should/Could |
-| 2 | UX | Three-panel layout (prompt / flow view / mock chat), states, copy |
-| 3 | TL | Slices mapped to `shared` / `server` / `web`, API touchpoints, risks, AC → slice |
-| 4 | Dev | Slice-by-slice; note package + module per slice |
-| 5 | QA | AC table, demo smoke path, executor/validator edges, ship call |
+| Stage | Role | Output (keep short)                                                              |
+| ----- | ---- | -------------------------------------------------------------------------------- |
+| 1     | BA   | Story, In/Out vs MVP table, AC (Given/When/Then), Must/Should/Could              |
+| 2     | UX   | Two-panel layout (prompt / flow) + floating chat widget, states, copy            |
+| 3     | TL   | Slices mapped to `shared` / `server` / `web`, API touchpoints, risks, AC → slice |
+| 4     | Dev  | Slice-by-slice; note package + module per slice                                  |
+| 5     | QA   | AC table, demo smoke path, executor/validator edges, ship call                   |
 
 ### Typical slice order (adapt per feature)
 
