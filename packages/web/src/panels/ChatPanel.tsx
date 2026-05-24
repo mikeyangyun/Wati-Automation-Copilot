@@ -15,44 +15,68 @@ export interface ChatPanelProps {
    * raw ID when the flow isn't available.
    */
   flow?: Flow;
+  /**
+   * When provided, ChatPanel renders as a widget and surfaces a close × in
+   * its header. Closing the widget is a UI-only act; the session is intact
+   * and re-opening picks up where it left off.
+   */
+  onClose?: () => void;
 }
 
-export function ChatPanel({ status, onStep, onReset, flow }: ChatPanelProps) {
+export function ChatPanel({ status, onStep, onReset, flow, onClose }: ChatPanelProps) {
   // Debug toggle defaults to OFF so the chat panel reads like a real WhatsApp
   // preview. Designers can opt in to see the executor's step trace (which
   // branch was taken, which fallback fired, etc.). End-users of the live bot
   // never see this — it only exists in the simulator's envelope.
   const [debug, setDebug] = useState(false);
   const active = status.kind === 'active';
+  const isWidget = onClose !== undefined;
 
   return (
-    <section className="panel chat-panel" aria-label="Mock chat">
+    <section
+      className={`panel chat-panel${isWidget ? ' chat-panel-widget' : ''}`}
+      aria-label={isWidget ? 'Test chatbot' : 'Mock chat'}
+    >
       <header className="chat-header">
-        <h2>Chat</h2>
-        {active && (
-          <div className="chat-header-actions">
+        <h2>{isWidget ? 'Test Chatbot' : 'Chat'}</h2>
+        <div className="chat-header-actions">
+          {active && (
+            <>
+              <button
+                type="button"
+                className={`chat-debug-toggle${debug ? ' chat-debug-toggle-on' : ''}`}
+                onClick={() => setDebug((d) => !d)}
+                aria-pressed={debug}
+                aria-label="Toggle flow trace (designer view)"
+                title="Show the step trace — only visible in this simulator, never sent to end-users."
+                data-testid="chat-debug-toggle"
+              >
+                <span className="chat-debug-dot" aria-hidden="true" />
+                Debug
+              </button>
+              <button
+                type="button"
+                className="chat-reset"
+                onClick={onReset}
+                disabled={status.pending !== undefined}
+              >
+                Reset
+              </button>
+            </>
+          )}
+          {onClose !== undefined && (
             <button
               type="button"
-              className={`chat-debug-toggle${debug ? ' chat-debug-toggle-on' : ''}`}
-              onClick={() => setDebug((d) => !d)}
-              aria-pressed={debug}
-              aria-label="Toggle flow trace (designer view)"
-              title="Show the step trace — only visible in this simulator, never sent to end-users."
-              data-testid="chat-debug-toggle"
+              className="chat-close"
+              onClick={onClose}
+              aria-label="Close chat"
+              title="Hide the test chatbot — session is kept for when you reopen."
+              data-testid="chat-close"
             >
-              <span className="chat-debug-dot" aria-hidden="true" />
-              Debug
+              ×
             </button>
-            <button
-              type="button"
-              className="chat-reset"
-              onClick={onReset}
-              disabled={status.pending !== undefined}
-            >
-              Reset
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
       <ChatPanelBody status={status} onStep={onStep} debug={debug} flow={flow} />
     </section>

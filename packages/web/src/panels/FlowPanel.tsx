@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, lazy, useState, type ReactNode } from 'react';
 import type { Severity } from 'shared';
 
 import { IssueList } from '../components/IssueList.js';
@@ -37,6 +37,14 @@ export interface FlowPanelProps {
   selectedIssueIndex?: number | null;
   /** Fired when the user clicks an issue card. App owns the resulting state. */
   onSelectIssue?: (index: number | null) => void;
+  /** Fires when the user clicks the "Test Chatbot" button in the header. */
+  onOpenChatbot?: () => void;
+  /**
+   * Optional chat widget node. When provided (and the flow is ready), it's
+   * rendered as a floating overlay anchored to the bottom-right of the flow
+   * panel. App owns visibility — pass `null` to keep the widget closed.
+   */
+  chatWidget?: ReactNode;
 }
 
 export function FlowPanel({
@@ -51,6 +59,8 @@ export function FlowPanel({
   selectedSeverity,
   selectedIssueIndex,
   onSelectIssue,
+  onOpenChatbot,
+  chatWidget,
 }: FlowPanelProps) {
   const flowReady = status.kind === 'ready';
   // The view toggle is presentation-only, so it lives in the panel rather
@@ -76,8 +86,15 @@ export function FlowPanel({
   const showExplain = explainStatus.kind !== 'idle';
   const showReview = !showExplain && reviewStatus.kind !== 'idle';
 
+  // The Test Chatbot button is gated on a ready flow — opening the widget
+  // without a flow would start a session against `null`.
+  const testChatbotDisabled = !flowReady;
+  const testChatbotTitle = testChatbotDisabled
+    ? 'Generate a flow first to launch the test chatbot'
+    : 'Open the test chatbot — try the flow as if you were the end-user';
+
   return (
-    <section className="panel">
+    <section className="panel flow-panel">
       <header className="flow-header">
         <h2>Flow</h2>
         {flowReady && (
@@ -106,6 +123,21 @@ export function FlowPanel({
             >
               {view === 'graph' ? 'View JSON' : 'View graph'}
             </button>
+            {onOpenChatbot !== undefined && (
+              <button
+                type="button"
+                className="flow-test-chatbot-btn"
+                onClick={onOpenChatbot}
+                disabled={testChatbotDisabled}
+                title={testChatbotTitle}
+                data-testid="flow-test-chatbot"
+              >
+                <span className="flow-test-chatbot-icon" aria-hidden="true">
+                  ▶
+                </span>
+                Test Chatbot
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -124,6 +156,11 @@ export function FlowPanel({
         selectedNodeIds={selectedNodeIds}
         selectedSeverity={selectedSeverity}
       />
+      {chatWidget !== null && chatWidget !== undefined && (
+        <div className="chat-widget" data-testid="chat-widget">
+          {chatWidget}
+        </div>
+      )}
     </section>
   );
 }
