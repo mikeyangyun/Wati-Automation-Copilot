@@ -36,12 +36,22 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_TOKENS = 4096;
 
 /**
- * Response shape we actually depend on. `finish_reason` is optional in the
- * spec but every provider we've seen returns it; we make it optional here
- * for forward compatibility and log it on the way out — without that field
- * the difference between "model decided to stop" and "max_tokens hit" is
- * invisible, which is exactly the failure mode that bit us on flash + JSON
- * mode (mid-string truncation, no log explanation).
+ * Response shape we actually depend on. Three fields are optional in the
+ * spec but DeepSeek (and every OpenAI-compatible provider we've seen) always
+ * returns them — we make them optional here for forward compatibility and
+ * surface them in logs:
+ *
+ *   - `finish_reason`: distinguishes "model decided to stop" (`stop`) from
+ *     "we hit max_tokens" (`length`) — without this the diagnostic for a
+ *     truncated payload is invisible.
+ *
+ *   - `usage.completion_tokens_details.reasoning_tokens`: non-zero ONLY for
+ *     reasoning-tuned models (e.g. `deepseek-v4-pro`, OpenAI's o1 series).
+ *     These models burn 1000+ tokens "thinking" before the visible content
+ *     ever starts; on a structured-JSON task that's pure wasted latency
+ *     (12x slowdown observed: 40 s vs 3.4 s on the same prompt). We log
+ *     and warn so a future "let's try the smarter model" diff that
+ *     accidentally re-enables reasoning shows up clearly in stdout.
  */
 const ChatCompletionResponseSchema = z.object({
   choices: z
@@ -54,6 +64,15 @@ const ChatCompletionResponseSchema = z.object({
       }),
     )
     .min(1),
+  usage: z
+    .object({
+      completion_tokens_details: z
+        .object({
+          reasoning_tokens: z.number().int().nonnegative().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 export class DeepSeekProvider implements LLMProvider {
@@ -138,6 +157,7 @@ export class DeepSeekProvider implements LLMProvider {
       const choice = parsed.data.choices[0]!;
       const content = choice.message.content;
       const finishReason = choice.finish_reason ?? 'unknown';
+      const reasoningTokens = parsed.data.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
 
       // Treat zero-length content as a provider-side failure rather than
       // letting it propagate to the agent's JSON parser as a confusing
@@ -165,8 +185,29 @@ export class DeepSeekProvider implements LLMProvider {
             contentChars: content.length,
             maxTokens: this.maxTokens,
             finishReason,
+            reasoningTokens,
           },
           'llm output truncated by max_tokens (finish_reason=length) — JSON parse will fail',
+        );
+      }
+
+      // Reasoning-model regression guard. A non-zero reasoning_tokens value
+      // means the configured model is a reasoning variant (e.g. v4-pro,
+      // o1) — fine if the operator intends that, but on a JSON-out task
+      // it adds 10x latency for no quality gain. Loud at-the-edge log so
+      // a future env swap that accidentally selects a reasoning model
+      // (one of the recurring failure modes that produced this rule)
+      // surfaces in the first request, not in a frustrated bug report.
+      if (reasoningTokens > 0) {
+        logger.warn(
+          {
+            provider: this.name,
+            model: this.model,
+            reasoningTokens,
+            contentChars: content.length,
+            elapsedMs: Math.round(performance.now() - startedAt),
+          },
+          'llm model emitted reasoning_tokens — wasted latency on a structured-output task; consider switching to a non-reasoning chat model',
         );
       }
 
@@ -178,6 +219,7 @@ export class DeepSeekProvider implements LLMProvider {
           elapsedMs,
           contentChars: content.length,
           finishReason,
+          reasoningTokens,
           ok: true,
         },
         'llm provider call ok',

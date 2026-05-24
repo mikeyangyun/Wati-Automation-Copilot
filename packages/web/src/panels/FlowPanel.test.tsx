@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import type { Flow } from 'shared';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -50,6 +50,77 @@ function renderPanel(
     />,
   );
 }
+
+describe('FlowPanel — generating placeholder', () => {
+  // Generate is a synchronous 20–40 s LLM round-trip. The placeholder is the
+  // operator's only feedback during that window, so its three signals
+  // (heading / time-expectation caption / live elapsed counter) are the
+  // entire UX. These tests pin them so a future "simplify the placeholder"
+  // diff can't silently regress demo perceived-latency.
+
+  it('renders heading, time-expectation caption, and live elapsed counter', () => {
+    renderPanel({ kind: 'generating' });
+    const card = screen.getByTestId('generating-placeholder');
+    expect(card).toHaveAttribute('role', 'status');
+    expect(card).toHaveAttribute('aria-live', 'polite');
+    // Heading still contains the historical "Generating flow…" string so
+    // any external instrumentation / a11y tooling anchored on that phrase
+    // doesn't break.
+    expect(card).toHaveTextContent(/generating flow/i);
+    // Caption must surface a realistic latency expectation — without this
+    // the user reaches for cmd-R within ~10 s. Range follows the active
+    // model's measured 95th-percentile (deepseek-chat: ~3–8 s).
+    expect(card).toHaveTextContent(/3[–-]8\s*s/);
+    // Elapsed counter starts at 0s before any timer tick.
+    expect(screen.getByTestId('generating-elapsed')).toHaveTextContent(/Elapsed:\s*0s/);
+  });
+
+  it('increments the elapsed counter as wall time advances', () => {
+    vi.useFakeTimers();
+    try {
+      const start = new Date('2026-05-24T00:00:00.000Z');
+      vi.setSystemTime(start);
+      renderPanel({ kind: 'generating' });
+      // The placeholder reads from `Date.now()` on each interval tick, so we
+      // have to advance both the system clock and the timer queue, then
+      // flush React's state update before asserting the rendered text.
+      // `advanceTimersByTime(n)` itself advances the system clock by `n`
+      // ms, so the elapsed reading lands at (setSystemTime delta) + (timer
+      // advance) rather than a tidy single value. We assert the counter
+      // is "any non-zero single-digit seconds" — that's enough to prove
+      // the interval is wired up, without baking a fragile literal in.
+      act(() => {
+        vi.setSystemTime(new Date(start.getTime() + 5_000));
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByTestId('generating-elapsed')).toHaveTextContent(/Elapsed:\s*[1-9]s/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('surfaces a slow-network warning once elapsed crosses the soft threshold (15 s)', () => {
+    vi.useFakeTimers();
+    try {
+      const start = new Date('2026-05-24T00:00:00.000Z');
+      vi.setSystemTime(start);
+      renderPanel({ kind: 'generating' });
+      // Advance past the 15 s soft-warning threshold (sized at half of
+      // LLM_TIMEOUT_MS=30 s). `act` is required because the setInterval
+      // handler updates state, and without flushing the next render the
+      // class-name assertion sees the pre-warning markup.
+      act(() => {
+        vi.setSystemTime(new Date(start.getTime() + 16_000));
+        vi.advanceTimersByTime(1000);
+      });
+      const card = screen.getByTestId('generating-placeholder');
+      expect(card).toHaveClass('placeholder-generating-slow');
+      expect(card).toHaveTextContent(/taking longer than usual/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe('FlowPanel — base rendering', () => {
   it('shows a placeholder hint when idle and no Explain button', () => {

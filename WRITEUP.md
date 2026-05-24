@@ -12,7 +12,7 @@ Wati operators build chatbot flows node-by-node — fast for experts, slow for n
 
 ## Architecture and key design decisions
 
-TypeScript pnpm monorepo: **`shared`** (one Zod schema, types, fixtures) · **`server`** (Fastify, executor FSM, agents, validator, simulator) · **`web`** (Vite + React Flow + Zustand). **7 REST endpoints**, in-memory store, **581 tests** (73 / 252 / 256). CI gate covers typecheck / lint / test / build + an in-process simulation smoke harness.
+TypeScript pnpm monorepo: **`shared`** (one Zod schema, types, fixtures) · **`server`** (Fastify, executor FSM, agents, validator, simulator) · **`web`** (Vite + React Flow + Zustand). **7 REST endpoints**, in-memory store, **589 tests** (73 / 257 / 259). CI gate covers typecheck / lint / test / build + an in-process simulation smoke harness.
 
 **Request lifecycle (Generate):** `prompt → FlowAgent → LLM → Zod parse + capped retry → structural validator → in-mem store → typed response`. Full Mermaid sequence diagrams for Generate / Explain + Review / Simulate, plus an entity-relationship overview, live in [docs/architecture.md](./docs/architecture.md).
 
@@ -31,7 +31,7 @@ An "agile micro-team" workflow driven through Cursor: **BA → UX → TL → Dev
 - **LLM output handling.** Zod parses everything; malformed output triggers a capped retry; structured `LLM_INVALID_OUTPUT` / `LLM_UNAVAILABLE` errors map to documented HTTP responses. Output is typed before it touches the executor — no prompt-injection runtime path.
 - **Failure modes named before code.** "Review outage → info, never 502", "executor never imports `llm/`" (ESLint-enforced), "no secrets logged" (Zod-validated env + error-mapper redaction).
 - **Observability.** Fastify pino with request-scoped logger; the simulator emits structured step traces consumed by the UI debug panel and stdout, so a failed end-to-end run is reproducible without instrumentation.
-- **Test design.** 581 tests are mine in shape — Cursor drafted cases, I tightened invariants, added the structural-vs-semantic interaction tests, and the in-process simulation smoke harness (`pnpm --filter server simulation-smoke`).
+- **Test design.** 589 tests are mine in shape — Cursor drafted cases, I tightened invariants, added the structural-vs-semantic interaction tests, and the in-process simulation smoke harness (`pnpm --filter server simulation-smoke`).
 
 ## Trade-offs and V2
 

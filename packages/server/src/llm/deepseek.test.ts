@@ -103,6 +103,39 @@ describe('DeepSeekProvider — complete', () => {
     ).rejects.toThrow(/empty content/i);
   });
 
+  it('returns content unchanged when the provider reports reasoning_tokens (regression guard)', async () => {
+    // Root-cause finding (2026-05-24): `deepseek-v4-pro` is a reasoning
+    // model that burns 1500+ tokens internally before emitting visible
+    // content, adding ~10x latency to structured-output tasks for no
+    // quality gain. We don't reject these responses (they're still
+    // semantically valid) but we DO log a warn so future env swaps that
+    // re-enable a reasoning model show up in stdout immediately rather
+    // than as a vague "generate is slow" complaint. This test pins the
+    // parse path: a payload with `usage.completion_tokens_details.
+    // reasoning_tokens` set must round-trip without breaking the schema.
+    const payload = {
+      choices: [
+        {
+          message: { content: '{"ok":true}' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: {
+        completion_tokens_details: { reasoning_tokens: 1853 },
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const provider = newProvider({ fetch: fetchMock });
+    await expect(provider.complete({ messages: [{ role: 'user', content: 'hi' }] })).resolves.toBe(
+      '{"ok":true}',
+    );
+  });
+
   it('still returns content when finish_reason is "length" — caller decides whether to retry', async () => {
     // We do NOT throw on truncation: the downstream JSON parser is the
     // authoritative validator (a truncated payload will fail there with a

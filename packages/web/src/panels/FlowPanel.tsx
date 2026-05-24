@@ -1,6 +1,7 @@
 import {
   Suspense,
   lazy,
+  useEffect,
   useState,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -420,7 +421,7 @@ function FlowPanelBody({ status, view, selectedNodeIds, selectedSeverity }: Flow
     case 'idle':
       return <FlowPreview />;
     case 'generating':
-      return <p className="placeholder">Generating flow…</p>;
+      return <GeneratingPlaceholder />;
     case 'ready':
       if (view === 'graph') {
         return (
@@ -489,6 +490,68 @@ function FlowPreview() {
       >
         <FlowGraph flow={SAMPLE_FLOW} />
       </Suspense>
+    </div>
+  );
+}
+
+/* ---------- Generate-in-progress placeholder ----------
+ *
+ * Generate is a synchronous LLM round-trip — typically 20–40 s on DeepSeek
+ * Pro, dominated by inference time which we do not control. Until streaming
+ * lands (see WRITEUP V2 trade-offs) the operator's only feedback during
+ * that window is whatever this component renders. The previous
+ * `Generating flow…` one-liner was technically correct but operationally
+ * cruel: with no time hint the user reaches for cmd-R within ~10 s.
+ *
+ * This component does three things:
+ *   1. Sets the right expectation up front ("typically 20–40 s").
+ *   2. Counts elapsed seconds live so the user can self-anchor — a
+ *      visible counter is the single biggest perceived-latency win at
+ *      zero engineering cost (no infra change, no model change).
+ *   3. Surfaces a soft warning past 60 s — at that point a real timeout
+ *      is imminent, so the user shouldn't keep waiting blindly.
+ */
+// Soft warning at the half-way point of the active LLM_TIMEOUT_MS (30 s).
+// Lowered from 60 s after the reasoning-model root cause was fixed — with
+// `deepseek-chat` a healthy generate completes in 3–8 s, so anything past
+// 15 s already indicates something is off (DeepSeek hiccup, network, etc.)
+// and the operator should know before the actual abort fires.
+const GENERATE_SOFT_WARNING_SECONDS = 15;
+
+function GeneratingPlaceholder() {
+  // Track elapsed seconds via a 1Hz interval. `Date.now()` baseline survives
+  // tab throttling better than a counter `setInterval` would — React StrictMode
+  // double-invocation in dev also leaves no drift because we recompute from
+  // the start timestamp on every tick rather than incrementing in place.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const warning = elapsedSec >= GENERATE_SOFT_WARNING_SECONDS;
+
+  return (
+    <div
+      className={`placeholder placeholder-generating${warning ? ' placeholder-generating-slow' : ''}`}
+      role="status"
+      aria-live="polite"
+      data-testid="generating-placeholder"
+    >
+      <div className="placeholder-spinner" aria-hidden="true" />
+      <p className="placeholder-heading">Generating flow…</p>
+      <p className="placeholder-caption">
+        Typically 3–8 s. Output size drives latency — keep prompts focused for faster iterations.
+      </p>
+      <p className="placeholder-elapsed" data-testid="generating-elapsed">
+        Elapsed: <strong>{elapsedSec}s</strong>
+        {warning
+          ? ' — DeepSeek is taking longer than usual; the request will time out at 30 s.'
+          : ''}
+      </p>
     </div>
   );
 }

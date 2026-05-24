@@ -186,6 +186,47 @@ describe('FLOW_AGENT_SYSTEM_PROMPT — expectedReplies guardrails', () => {
   });
 });
 
+describe('FLOW_AGENT_SYSTEM_PROMPT — graph-shape guardrails', () => {
+  // Regression: on 2026-05-24 a real generate produced an edge with
+  // `from === to` (self-loop), which `EdgeSchema.refine` correctly rejected
+  // as "Edge cannot connect a node to itself" — but the generate failed
+  // with no retry recovery because temperature=0 means a deterministic
+  // re-call produces the same self-loop. The fix lives in the prompt
+  // (forbid self-loops up front); these tests pin the wording so a future
+  // "let me trim the rules" diff can't silently re-open the regression.
+
+  it('forbids self-loops where edge.from === edge.to', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/never create a self-loop/i);
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/edge\.from\s*===\s*edge\.to/);
+  });
+
+  it('requires unique edge ids', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/Edge ids must be unique/i);
+  });
+});
+
+describe('FLOW_AGENT_SYSTEM_PROMPT — output-size guardrails', () => {
+  // Latency motivation: LLM wall-clock scales near-linearly with output
+  // token count. Without an upper bound the model produces 12-node flows
+  // with "thanks for your patience" filler that take 40 s on Pro for no
+  // user-visible benefit. These rules pin a default ceiling so generate
+  // stays usable on the demo network. If a future edit weakens them
+  // (e.g. raises the default to "10–15 nodes") these tests force a
+  // visible diff that survives review.
+
+  it('defaults the model to 5–8 total nodes (max 12 only when justified)', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/5[–-]8 total nodes/i);
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/do not pad/i);
+  });
+
+  it('caps message verbosity to ~20 words per send/ask text', () => {
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/≤ 20 words/);
+    // Phrase-only check — the rule must call out *why* (scanning on small
+    // screens), so a "20 words" hard-cap can't be hand-waved away later.
+    expect(FLOW_AGENT_SYSTEM_PROMPT).toMatch(/scanned/i);
+  });
+});
+
 describe('FlowAgent.generate — input validation (AC2)', () => {
   it('AC2 — rejects an empty prompt with 400 before calling the LLM', async () => {
     const provider = new MockLLMProvider([buildDraftJson()]);
