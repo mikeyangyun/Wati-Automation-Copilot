@@ -64,6 +64,7 @@ function FlowGraphInner({ flow, selectedNodeIds, selectedSeverity }: FlowGraphPr
       data: {
         type: n.type,
         label: n.label,
+        config: n.config,
         selected: selectedSet.has(n.id),
         ...(selectedSeverity !== undefined ? { selectedSeverity } : {}),
         dimmed: hasSelection && !selectedSet.has(n.id),

@@ -143,8 +143,10 @@ describe('computeLayout — determinism', () => {
     const shortAsk = short.nodes.find((n) => n.id === 'n_ask')!;
     const longAsk = long.nodes.find((n) => n.id === 'n_ask')!;
     expect(shortAsk.position).toEqual(longAsk.position);
-    // Sanity: the size constants are visible for the consumer.
-    expect(NODE_WIDTH).toBe(180);
-    expect(NODE_HEIGHT).toBe(64);
+    // Sanity: the size constants are visible for the consumer. Width/height
+    // were bumped to accommodate the Wati-style colored header + per-type
+    // body — see `nodeStyle.ts` and `NodeCard.tsx`.
+    expect(NODE_WIDTH).toBe(280);
+    expect(NODE_HEIGHT).toBe(160);
   });
 });

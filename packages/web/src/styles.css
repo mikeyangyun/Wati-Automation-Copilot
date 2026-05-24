@@ -41,13 +41,13 @@ body {
 
 .panels {
   display: grid;
-  grid-template-columns: 320px 1fr 360px;
+  grid-template-columns: 320px 1fr;
   gap: 1px;
   background: var(--border);
   min-height: 0;
-  /* Below 1200px the three-panel layout starts to squeeze. We let the page
-   * scroll horizontally rather than collapse content; a responsive drawer
-   * pattern would be a follow-up. */
+  /* The chat simulator no longer lives in a dedicated 3rd column — it
+   * floats as a widget over the flow panel after the user clicks
+   * "Test Chatbot". See `.chat-widget`. */
   min-width: 1100px;
 }
 
@@ -586,6 +586,121 @@ body {
    * reads as a "secondary, view-mode" control. */
   background: #ffffff;
   color: var(--muted);
+}
+
+/* "Test Chatbot" — the marquee CTA on the flow header (think Wati's
+ * green "Test Chatbot" button). Sits at the end of the action row. */
+.flow-test-chatbot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.flow-test-chatbot-btn:hover:not(:disabled) {
+  background: #15803d;
+  box-shadow: 0 1px 4px rgba(22, 163, 74, 0.25);
+  transform: translateY(-1px);
+}
+
+.flow-test-chatbot-btn:disabled {
+  background: #d1fae5;
+  border-color: #d1fae5;
+  color: #065f46;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.flow-test-chatbot-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* Anchor: the chat widget is positioned relative to FlowPanel. */
+.flow-panel {
+  position: relative;
+}
+
+/* ---------- Floating chat widget ---------- */
+
+.chat-widget {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: min(360px, calc(100% - 32px));
+  /* Hard cap so the widget never grows past the visible area on short
+   * viewports, but otherwise prefers a comfortable 560px column. */
+  max-height: min(620px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow:
+    0 10px 30px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  /* Above the flow graph but below modal-style review/explain blocks rendered
+   * higher up in the panel — keeps the widget overlay-y without ever
+   * obscuring an open review block. */
+  z-index: 5;
+  overflow: hidden;
+}
+
+.chat-widget > .chat-panel-widget {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* When ChatPanel renders as a widget, give its header a subtle bottom
+ * divider so the close × visually pairs with the title. */
+.chat-panel-widget .chat-header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 10px;
+}
+
+.chat-close {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.chat-close:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+.chat-close:focus-visible {
+  outline: 2px solid var(--prompt-accent);
+  outline-offset: 2px;
 }
 
 .flow-review {
@@ -1199,13 +1314,17 @@ body {
   text-align: center;
 }
 
+/* ---------- Node cards (Wati-style: colored header + per-type body) ---------- */
+
 .node-card {
-  width: 180px;
-  height: 64px;
-  padding: 8px 10px;
+  width: 280px;
+  min-height: 120px;
+  background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 13px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1220,32 +1339,164 @@ body {
   z-index: 2;
 }
 
-.node-card-row {
+.node-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
+  letter-spacing: 0.01em;
 }
 
-.node-emoji {
-  font-size: 16px;
+.node-header-icon {
+  font-size: 14px;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.node-label {
+.node-header-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.node-chip {
-  font-size: 10px;
-  font-weight: 600;
+.node-body {
+  padding: 9px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Small subtitle showing the LLM-assigned node label. Kept dim so the
+ * type-name header reads as the primary heading. */
+.node-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-message {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.node-message-question {
+  -webkit-line-clamp: 2;
+}
+
+.node-message-muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.node-starting-step {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.node-option-chips {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-option-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.node-option-chip-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.node-option-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.node-option-chip-overflow {
+  justify-content: center;
+  color: var(--muted);
+  font-style: italic;
+  background: transparent;
+  border-style: dashed;
+}
+
+.node-team {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.node-team-label {
+  color: var(--muted);
+}
+
+.node-team-name {
+  color: var(--text);
+}
+
+.node-api {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.node-api-method {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
   letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.node-api-url {
+  font-size: 11.5px;
+  color: var(--muted);
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .node-handle {

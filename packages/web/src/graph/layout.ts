@@ -4,13 +4,15 @@ import type { Edge as FlowEdge, Flow, Node as FlowNode, NodeType } from 'shared'
 /**
  * Node + edge dimensions handed to dagre. Kept constant so positions are
  * stable across renders and across user-provided labels of varying length.
- * Visual truncation is the styling layer's job, not the layout's.
+ * Visual truncation / per-type body height is the styling layer's job, not
+ * the layout's — we pick a height generous enough for the tallest body
+ * (ask_question with chips) so adjacent rows never overlap visually.
  */
-export const NODE_WIDTH = 180;
-export const NODE_HEIGHT = 64;
+export const NODE_WIDTH = 280;
+export const NODE_HEIGHT = 160;
 const RANK_DIR = 'TB' as const;
-const NODE_SEP = 60;
-const RANK_SEP = 70;
+const NODE_SEP = 48;
+const RANK_SEP = 96;
 
 export interface LayoutNode {
   id: string;
