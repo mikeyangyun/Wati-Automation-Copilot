@@ -54,9 +54,24 @@ function renderPanel(
 describe('FlowPanel — base rendering', () => {
   it('shows a placeholder hint when idle and no Explain button', () => {
     renderPanel({ kind: 'idle' });
+    // The idle copy ("No flow yet") moved inside the example-preview
+    // banner. The literal string is preserved so screen-reader users and
+    // existing automation keep the same anchor.
     expect(screen.getByText(/no flow yet/i)).toBeInTheDocument();
     expect(screen.queryByTestId('flow-json')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /explain/i })).not.toBeInTheDocument();
+  });
+
+  it('renders the example preview wrapper + banner when idle', async () => {
+    renderPanel({ kind: 'idle' });
+    // Wrapper is present and identifiable for scoped queries.
+    expect(screen.getByTestId('flow-preview')).toBeInTheDocument();
+    // Banner shows the eyebrow and a forward-pointing caption.
+    expect(screen.getByText(/example preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/enter a prompt and click generate/i)).toBeInTheDocument();
+    // And the sample graph itself renders (after the Suspense fallback
+    // resolves) — proves the user actually sees what a flow looks like.
+    await screen.findByTestId('flow-graph');
   });
 
   it('shows a progress hint while generating', () => {

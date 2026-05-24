@@ -24,7 +24,7 @@ curl -s http://localhost:3000/health
 open http://localhost:5173
 ```
 
-You should see the UI: header with the **Describe → Flow → Test** stepper (currently on Describe), a Prompt panel on the left, and an empty Flow panel on the right. No flow is loaded yet; the Test Chatbot widget is not visible until the user clicks **Test Chatbot** later.
+You should see the UI: header with the **Describe → Flow → Test** stepper (currently on Describe), a Prompt panel on the left, and the Flow panel on the right showing an **Example preview** — a buyer/seller routing flow rendered with a dashed border so it's clearly a teaching aid. No live flow is loaded yet; the Test Chatbot widget is not visible until the user clicks **Test Chatbot** later.
 
 **If the LLM call fails during the demo** (network, key, model timeout): the API surfaces a typed `LLM_*` error and the UI shows a recoverable error banner. Click **Generate** again to retry. Generate is the only LLM-dependent step; Explain and Review fail soft (Review keeps structural findings and appends a `SEMANTIC_REVIEW_UNAVAILABLE` info-level issue).
 
@@ -93,7 +93,7 @@ Same prompt as B, but now **revise** it to fix the gap:
 - **Schema as the contract.** One Zod type (`Flow`) generates TypeScript types for the server, the web app, and the LLM output parser. Drift between layers becomes a compile error.
 - **LLM-free invariants.** `executor/` and `validator/` cannot import from `llm/` — ESLint blocks it. That's how we keep "simulation is deterministic" honest.
 - **Provider-agnostic LLM.** Vendor lives behind `LLMProvider`. Swapping to OpenAI is a 30-line adapter and a config change.
-- **Test coverage.** 523 automated tests across `shared / server / web` (73 + 216 + 234), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
+- **Test coverage.** 530 automated tests across `shared / server / web` (73 + 216 + 241), plus an in-process simulation smoke harness (`pnpm --filter server simulation-smoke`) and a GitHub Actions CI gate covering typecheck, lint, test, build, and smoke.
 
 ---
 

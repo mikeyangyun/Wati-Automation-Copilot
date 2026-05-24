@@ -258,6 +258,7 @@ Header with the app title and a **Describe → Flow → Test** stepper, over a t
 - The chat widget opens only after Test Chatbot is clicked. Closing it preserves the session; clicking Test Chatbot again re-opens the same conversation. A fresh **Generate** force-closes the widget and discards the session.
 - The widget can be resized by dragging its top-left grip; the chosen size is persisted in `localStorage` across reloads.
 - The most recently submitted prompts (max 5, deduped) are persisted in `localStorage` and surfaced as a one-click **Recent** list below the starters.
+- Before the first Generate, the Flow panel renders a canonical buyer/seller routing flow as an **Example preview** (dashed border + banner) so users see what generated flows look like instead of an empty pane.
 
 ---
 

@@ -6,7 +6,7 @@
 
 ## Status
 
-**Feature complete.** All product surfaces are implemented end-to-end and covered by 523 automated tests:
+**Feature complete.** All product surfaces are implemented end-to-end and covered by 530 automated tests:
 
 - **Generate** — `FlowAgent` turns a natural-language prompt into a Zod-validated `Flow`. Recent prompts are persisted in `localStorage` for one-click reuse; **⌘+Enter** (or Ctrl+Enter) submits.
 - **Mock simulation** — deterministic FSM executor with branch matching, retries, fallback, handoff, and reset. Surfaced through an explicit **Test Chatbot** button that opens a floating, drag-to-resize chat widget.
@@ -52,7 +52,7 @@ curl http://localhost:3000/health
 Open <http://localhost:5173>. The UI is a header (title + three-step **Describe → Flow → Test** stepper) over a two-panel layout, with a chat widget that floats over the flow panel on demand:
 
 - **Left — Prompt panel.** Textarea with starter examples, a **Generate** button (also fires on ⌘+Enter / Ctrl+Enter), a one-click **Recent** list backed by `localStorage`, and a soft character-count warning.
-- **Right — Flow panel.** Generated flow rendered as an auto-laid-out, read-only graph with Wati-style node cards (default view; toggle to JSON). Header surfaces **Explain**, **Review**, **View JSON**, and **Test Chatbot** buttons.
+- **Right — Flow panel.** Generated flow rendered as an auto-laid-out, read-only graph with Wati-style node cards (default view; toggle to JSON). Header surfaces **Explain**, **Review**, **View JSON**, and **Test Chatbot** buttons. Before the first Generate, the panel shows an **Example preview** — a canonical buyer/seller routing flow rendered through the same graph component, with a dashed-border treatment so it's clearly a teaching aid.
 - **Floating chat widget** (over the Flow panel). Opens only after **Test Chatbot** is clicked, persists across closes for the lifetime of the flow, and can be dragged to resize from its top-left grip (size persisted in `localStorage`).
 
 **Other scripts**

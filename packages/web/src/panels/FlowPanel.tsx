@@ -8,6 +8,7 @@ import {
 import type { Severity } from 'shared';
 
 import { IssueList } from '../components/IssueList.js';
+import { SAMPLE_FLOW } from '../graph/sampleFlow.js';
 import type { AppStatus, ExplainStatus, ReviewStatus } from '../state.js';
 
 /* ---------- Chat widget sizing ---------- */
@@ -68,9 +69,12 @@ function writeStoredWidgetSize(size: WidgetSize): void {
 }
 
 /*
- * Lazy-loaded so they don't bloat the initial bundle. Neither is needed
- * before the user actually generates a flow:
+ * Lazy-loaded to keep the initial render snappy. Both are wrapped in
+ * `<Suspense>` so first paint never blocks on these chunks:
  *   - `FlowGraph` pulls in `@xyflow/react` + `@dagrejs/dagre` (~150 KB gz).
+ *     It also renders the idle-state sample preview, so this chunk now
+ *     loads shortly after first paint rather than after the first
+ *     Generate. The Suspense fallback covers the small download window.
  *   - `react-markdown` only renders when the Explain block is open.
  * Splitting them dropped the initial JS chunk from ~189 KB to ~85 KB gz.
  */
@@ -414,7 +418,7 @@ interface FlowPanelBodyProps {
 function FlowPanelBody({ status, view, selectedNodeIds, selectedSeverity }: FlowPanelBodyProps) {
   switch (status.kind) {
     case 'idle':
-      return <p className="placeholder">No flow yet. Enter a prompt and click Generate.</p>;
+      return <FlowPreview />;
     case 'generating':
       return <p className="placeholder">Generating flow…</p>;
     case 'ready':
@@ -448,4 +452,43 @@ function FlowPanelBody({ status, view, selectedNodeIds, selectedSeverity }: Flow
         </div>
       );
   }
+}
+
+/**
+ * Idle-state preview: a real (Zod-validated) sample flow rendered through
+ * the same `<FlowGraph>` the user will see for their own generations, with
+ * a clear "Example preview" banner so it's never mistaken for live output.
+ *
+ * The banner intentionally still contains the literal string "No flow yet"
+ * so the existing accessibility / regression tests that anchor on that
+ * copy keep passing — and so screen-reader users immediately understand
+ * the state instead of being dropped into an unexplained graph.
+ *
+ * The `data-testid="flow-preview"` wrapper lets tests distinguish the
+ * preview's graph from a real generated graph (they both use the
+ * `flow-graph` testid, so we scope queries by walking up from this node
+ * when needed).
+ */
+function FlowPreview() {
+  return (
+    <div className="flow-preview" data-testid="flow-preview">
+      <div className="flow-preview-banner" role="note">
+        <span className="flow-preview-eyebrow">Example preview</span>
+        <p className="flow-preview-heading">No flow yet — here&apos;s what one looks like.</p>
+        <p className="flow-preview-caption">
+          Enter a prompt and click Generate (or press ⌘+Enter). Your flow lands here, ready to
+          explain, review, and test.
+        </p>
+      </div>
+      <Suspense
+        fallback={
+          <div className="flow-graph flow-graph-empty" data-testid="flow-preview-loading">
+            Loading preview…
+          </div>
+        }
+      >
+        <FlowGraph flow={SAMPLE_FLOW} />
+      </Suspense>
+    </div>
+  );
 }

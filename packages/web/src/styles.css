@@ -1611,6 +1611,62 @@ body {
   text-align: center;
 }
 
+/* ---------- Idle Flow panel: sample preview ---------- */
+
+/* Wrapper around the banner + sample graph so they share the panel
+ * vertical real estate. The graph still owns `flex: 1`, the banner
+ * stays compact at the top. */
+.flow-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.flow-preview-banner {
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #f5f3ff 0%, #faf5ff 100%);
+  border: 1px solid #ede9fe;
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.flow-preview-eyebrow {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--prompt-accent-2);
+  background: rgba(124, 58, 237, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.flow-preview-heading {
+  margin: 8px 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.flow-preview-caption {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* The sample graph is visually de-emphasised vs. a real generated flow:
+ * dashed border + slightly muted background, so users read it as a
+ * teaching aid rather than their own output. The actual node cards keep
+ * their normal colors so the type palette still teaches correctly. */
+.flow-preview .flow-graph {
+  border-style: dashed;
+  background: #fbfaff;
+}
+
 /* ---------- Node cards (Wati-style: colored header + per-type body) ---------- */
 
 .node-card {
