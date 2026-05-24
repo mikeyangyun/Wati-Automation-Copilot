@@ -1,7 +1,7 @@
 # Wati Automation Builder Copilot — Write-up
 
 > Plain English → reviewed Wati flow → walked end-to-end in a mock simulator, all before publish.
-> 📺 **5-min walkthrough:** [video](#) <!-- TODO: replace # with final Loom / YouTube / Drive URL --> · [storyboard](./DEMO.md)
+> 📺 **5-min walkthrough:** [video](https://youtu.be/Lnz9vb_Cuyc) · [storyboard](./DEMO.md)
 > Spec: [PRODUCT.md](./PRODUCT.md) · Run: [README.md](./README.md) · Architecture: [docs/architecture.md](./docs/architecture.md) · API & data model: [docs/data-model.md](./docs/data-model.md)
 
 ## Problem and MVP scope
